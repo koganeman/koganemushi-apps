@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { RateSettings, CorporateTaxParams } from "@/types/simulation";
 import { Input } from "@/components/ui/input";
 import { formatPercent, parsePercent, formatYen, parseYen } from "@/lib/format";
@@ -20,14 +21,21 @@ function PercentInput({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const [display, setDisplay] = useState(() => formatPercent(value));
+
+  useEffect(() => {
+    setDisplay(formatPercent(value));
+  }, [value]);
+
   return (
     <div className="flex items-center gap-2">
       <label className="text-sm whitespace-nowrap w-40">{label}</label>
       <Input
         type="text"
         className="w-24 text-right h-8 text-sm"
-        defaultValue={formatPercent(value)}
-        onBlur={(e) => onChange(parsePercent(e.target.value))}
+        value={display}
+        onChange={(e) => setDisplay(e.target.value)}
+        onBlur={() => onChange(parsePercent(display))}
       />
       <span className="text-sm text-muted-foreground">%</span>
     </div>
@@ -43,14 +51,21 @@ function YenInput({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const [display, setDisplay] = useState(() => value > 0 ? formatYen(value) : "");
+
+  useEffect(() => {
+    setDisplay(value > 0 ? formatYen(value) : "");
+  }, [value]);
+
   return (
     <div className="flex items-center gap-2">
       <label className="text-sm whitespace-nowrap w-40">{label}</label>
       <Input
         type="text"
         className="w-36 text-right h-8 text-sm"
-        defaultValue={value > 0 ? formatYen(value) : ""}
-        onBlur={(e) => onChange(parseYen(e.target.value))}
+        value={display}
+        onChange={(e) => setDisplay(e.target.value)}
+        onBlur={() => onChange(parseYen(display))}
       />
       <span className="text-sm text-muted-foreground">円</span>
     </div>
