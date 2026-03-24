@@ -1,23 +1,9 @@
 "use client";
 
 import type { CorporateTaxParams, ExecutiveInput, ExecutiveResult } from "@/types/simulation";
-
-interface HoukokushoSheetProps {
-  corporateTaxParams: CorporateTaxParams;
-  currentExecutives: ExecutiveInput[];
-  currentTotals: ExecutiveResult;
-  currentCorporateTax: number;
-  currentCorporateIncome: number;
-  comparisonExecutives: ExecutiveInput[];
-  comparisonTotals: ExecutiveResult;
-  comparisonCorporateTax: number;
-  comparisonCorporateIncome: number;
-  plan2Executives: ExecutiveInput[];
-  plan2Totals: ExecutiveResult;
-  plan2CorporateTax: number;
-  plan2CorporateIncome: number;
-  onCopyToPlan2: () => void;
-}
+import { useSimulationStore } from "@/stores/simulation-store";
+import { useShallow } from "zustand/react/shallow";
+import { useCurrentResults, useComparisonResults, usePlan2Results } from "@/hooks/use-computed-results";
 
 /** 差引表示用: 正負両方に対応したフォーマット（0は空白） */
 function fmtDiff(value: number): string {
@@ -330,22 +316,22 @@ function PlanBlock({
   );
 }
 
-export function HoukokushoSheet({
-  corporateTaxParams,
-  currentExecutives,
-  currentTotals,
-  currentCorporateTax,
-  currentCorporateIncome,
-  comparisonExecutives,
-  comparisonTotals,
-  comparisonCorporateTax,
-  comparisonCorporateIncome,
-  plan2Executives,
-  plan2Totals,
-  plan2CorporateTax,
-  plan2CorporateIncome,
-  onCopyToPlan2,
-}: HoukokushoSheetProps) {
+export function HoukokushoSheet() {
+  const { corporateTaxParams, currentExecutives, comparisonExecutives, plan2Executives, copyToPlan2 } =
+    useSimulationStore(
+      useShallow((s) => ({
+        corporateTaxParams: s.corporateTaxParams,
+        currentExecutives: s.currentExecutives,
+        comparisonExecutives: s.comparisonExecutives,
+        plan2Executives: s.plan2Executives,
+        copyToPlan2: s.copyToPlan2,
+      }))
+    );
+
+  const current = useCurrentResults();
+  const comparison = useComparisonResults();
+  const plan2 = usePlan2Results();
+
   return (
     <div className="p-6">
       {/* ヘッダー */}
@@ -353,7 +339,7 @@ export function HoukokushoSheet({
         <h2 className="text-base font-bold">役員報酬・配当シミュレーション</h2>
         <div className="flex items-center gap-4">
           <button
-            onClick={onCopyToPlan2}
+            onClick={copyToPlan2}
             className="text-xs border border-blue-400 text-blue-700 rounded px-3 py-1 hover:bg-blue-50 transition-colors"
           >
             PLAN１をPLAN２にコピー
@@ -370,21 +356,21 @@ export function HoukokushoSheet({
           label="PLAN１："
           corporateTaxParams={corporateTaxParams}
           currentExecutives={currentExecutives}
-          currentTotals={currentTotals}
-          currentCorporateTax={currentCorporateTax}
+          currentTotals={current.totals}
+          currentCorporateTax={current.corporateTax}
           comparisonExecutives={comparisonExecutives}
-          comparisonTotals={comparisonTotals}
-          comparisonCorporateTax={comparisonCorporateTax}
+          comparisonTotals={comparison.totals}
+          comparisonCorporateTax={comparison.corporateTax}
         />
         <PlanBlock
           label="PLAN２："
           corporateTaxParams={corporateTaxParams}
           currentExecutives={currentExecutives}
-          currentTotals={currentTotals}
-          currentCorporateTax={currentCorporateTax}
+          currentTotals={current.totals}
+          currentCorporateTax={current.corporateTax}
           comparisonExecutives={plan2Executives}
-          comparisonTotals={plan2Totals}
-          comparisonCorporateTax={plan2CorporateTax}
+          comparisonTotals={plan2.totals}
+          comparisonCorporateTax={plan2.corporateTax}
         />
       </div>
     </div>

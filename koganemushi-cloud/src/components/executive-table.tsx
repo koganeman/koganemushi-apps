@@ -4,6 +4,8 @@ import { useCallback } from "react";
 import type { ExecutiveInput, ExecutiveResult } from "@/types/simulation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatYen, parseYen } from "@/lib/format";
+import { useSimulationStore } from "@/stores/simulation-store";
+import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
 
 /** 行定義 */
 interface RowDef {
@@ -46,12 +48,11 @@ const rows: RowDef[] = [
   { label: "社会保険料合計", key: "computed", resultField: "totalSocialInsuranceCombined", boldLabel: true },
 ];
 
+export type ExecutiveTablePlan = "current" | "comparison";
+
 interface ExecutiveTableProps {
-  executives: ExecutiveInput[];
-  results: ExecutiveResult[];
-  totals: ExecutiveResult;
-  onExecutiveChange: (index: number, exec: ExecutiveInput) => void;
-  visibleCount: number;
+  plan: ExecutiveTablePlan;
+  visibleCount?: number;
 }
 
 function CellInput({
@@ -102,18 +103,23 @@ function CellInput({
 }
 
 export function ExecutiveTable({
-  executives,
-  results,
-  totals,
-  onExecutiveChange,
-  visibleCount,
+  plan,
+  visibleCount = 10,
 }: ExecutiveTableProps) {
+  const executives = useSimulationStore((s) =>
+    plan === "current" ? s.currentExecutives : s.comparisonExecutives
+  );
+  const updateExecutive = useSimulationStore((s) =>
+    plan === "current" ? s.updateCurrentExecutive : s.updateComparisonExecutive
+  );
+  const { results, totals } = plan === "current" ? useCurrentResults() : useComparisonResults();
+
   const updateField = useCallback(
     (index: number, field: keyof ExecutiveInput, value: string | number | boolean) => {
       const updated = { ...executives[index], [field]: value };
-      onExecutiveChange(index, updated);
+      updateExecutive(index, updated);
     },
-    [executives, onExecutiveChange]
+    [executives, updateExecutive]
   );
 
   const visible = executives.slice(0, visibleCount);

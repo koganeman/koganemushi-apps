@@ -2,6 +2,9 @@
 
 import type { CorporateTaxParams, EffectiveTaxRates } from "@/types/simulation";
 import { formatYen } from "@/lib/format";
+import { useSimulationStore } from "@/stores/simulation-store";
+import { useShallow } from "zustand/react/shallow";
+import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
 
 // 静的参照テーブル（令和元年10月1日以降開始事業年度）
 const TAX_RATE_PARAMS = [
@@ -24,14 +27,7 @@ const COMBINED_TAX_RATES = [
   { label: "800万円超", combined: "36.80%", effective: "33.58%" },
 ];
 
-interface HojinzeiSheetProps {
-  corporateTaxParams: CorporateTaxParams;
-  effectiveTaxRates: EffectiveTaxRates;
-  currentCorporateIncome: number;
-  currentCorporateTax: number;
-  comparisonCorporateIncome: number;
-  comparisonCorporateTax: number;
-}
+// Props interface removed - now uses Zustand store directly
 
 interface TaxCalcSection {
   title: string;
@@ -126,13 +122,10 @@ function TaxCalcTable({ title, corporateIncome, perCapitaLevy, carryForwardLoss,
   );
 }
 
-export function HojinzeiSheet({
-  corporateTaxParams,
-  currentCorporateIncome,
-  currentCorporateTax,
-  comparisonCorporateIncome,
-  comparisonCorporateTax,
-}: HojinzeiSheetProps) {
+export function HojinzeiSheet() {
+  const corporateTaxParams = useSimulationStore((s) => s.corporateTaxParams);
+  const { corporateIncome: currentCorporateIncome, corporateTax: currentCorporateTax } = useCurrentResults();
+  const { corporateIncome: comparisonCorporateIncome, corporateTax: comparisonCorporateTax } = useComparisonResults();
   return (
     <div className="p-6 space-y-8">
       {/* 現状 法人税計算 */}

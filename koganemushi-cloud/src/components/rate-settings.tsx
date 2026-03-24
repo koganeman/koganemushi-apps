@@ -4,13 +4,8 @@ import { useState, useEffect } from "react";
 import type { RateSettings, CorporateTaxParams } from "@/types/simulation";
 import { Input } from "@/components/ui/input";
 import { formatPercent, parsePercent, formatYen, parseYen } from "@/lib/format";
-
-interface RateSettingsProps {
-  rates: RateSettings;
-  corporateTaxParams: CorporateTaxParams;
-  onRatesChange: (rates: RateSettings) => void;
-  onCorporateTaxParamsChange: (params: CorporateTaxParams) => void;
-}
+import { useSimulationStore } from "@/stores/simulation-store";
+import { useShallow } from "zustand/react/shallow";
 
 function PercentInput({
   label,
@@ -72,18 +67,22 @@ function YenInput({
   );
 }
 
-export function RateSettingsPanel({
-  rates,
-  corporateTaxParams,
-  onRatesChange,
-  onCorporateTaxParamsChange,
-}: RateSettingsProps) {
+export function RateSettingsPanel() {
+  const { rates, corporateTaxParams, setRates, setCorporateTaxParams } = useSimulationStore(
+    useShallow((s) => ({
+      rates: s.rates,
+      corporateTaxParams: s.corporateTaxParams,
+      setRates: s.setRates,
+      setCorporateTaxParams: s.setCorporateTaxParams,
+    }))
+  );
+
   const updateRate = (key: keyof RateSettings, value: number) => {
-    onRatesChange({ ...rates, [key]: value });
+    setRates({ ...rates, [key]: value });
   };
 
   const updateCorp = (key: keyof CorporateTaxParams, value: number) => {
-    onCorporateTaxParamsChange({ ...corporateTaxParams, [key]: value });
+    setCorporateTaxParams({ ...corporateTaxParams, [key]: value });
   };
 
   return (

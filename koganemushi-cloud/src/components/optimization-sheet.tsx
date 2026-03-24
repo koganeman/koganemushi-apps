@@ -1,12 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type {
-  ExecutiveInput,
-  RateSettings,
-  CorporateTaxParams,
-  EffectiveTaxRates,
-} from "@/types/simulation";
 import { Button } from "@/components/ui/button";
 import { formatYen } from "@/lib/format";
 import {
@@ -14,30 +8,33 @@ import {
   sweepDividend,
   sweepPredeterminedBonus,
 } from "@/lib/optimize";
+import { useSimulationStore } from "@/stores/simulation-store";
+import { useShallow } from "zustand/react/shallow";
 
-interface OptimizationSheetProps {
-  executives: ExecutiveInput[];
-  comparisonExecutives: ExecutiveInput[];
-  rates: RateSettings;
-  isGovernmentHealthInsurance: boolean;
-  combineOtherSalaryForInsurance: boolean;
-  corporateTaxParams: CorporateTaxParams;
-  effectiveTaxRates: EffectiveTaxRates;
-  onApplyDividend: (dividend: number, salary: number) => void;
-  onApplyBonus: (bonus: number) => void;
-}
-
-export function OptimizationSheet({
-  executives,
-  comparisonExecutives,
-  rates,
-  isGovernmentHealthInsurance,
-  combineOtherSalaryForInsurance,
-  corporateTaxParams,
-  effectiveTaxRates,
-  onApplyDividend,
-  onApplyBonus,
-}: OptimizationSheetProps) {
+export function OptimizationSheet() {
+  const {
+    executives,
+    comparisonExecutives,
+    rates,
+    isGovernmentHealthInsurance,
+    combineOtherSalaryForInsurance,
+    corporateTaxParams,
+    effectiveTaxRates,
+    applyDividend,
+    applyBonus,
+  } = useSimulationStore(
+    useShallow((s) => ({
+      executives: s.currentExecutives,
+      comparisonExecutives: s.comparisonExecutives,
+      rates: s.rates,
+      isGovernmentHealthInsurance: s.governmentHealthInsurance,
+      combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
+      corporateTaxParams: s.corporateTaxParams,
+      effectiveTaxRates: s.effectiveTaxRates,
+      applyDividend: s.applyDividend,
+      applyBonus: s.applyBonus,
+    }))
+  );
   const [salarySweep, setSalarySweep] = useState<
     { salary: number; netIncome: number; combinedCF: number; isBaseline: boolean }[] | null
   >(null);
@@ -110,7 +107,7 @@ export function OptimizationSheet({
               size="sm"
               variant="default"
               onClick={() =>
-                onApplyDividend(
+                applyDividend(
                   dividendResult.optimalDividend,
                   dividendResult.optimalSalary
                 )
@@ -147,7 +144,7 @@ export function OptimizationSheet({
             <Button
               size="sm"
               variant="default"
-              onClick={() => onApplyBonus(bonusResult.optimalBonus)}
+              onClick={() => applyBonus(bonusResult.optimalBonus)}
             >
               適用
             </Button>
