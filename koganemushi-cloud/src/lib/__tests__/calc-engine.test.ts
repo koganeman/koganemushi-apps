@@ -15,7 +15,7 @@ import {
   calcCorporateTax,
   calcExecutive,
 } from "../calc-engine";
-import type { RateSettings, ExecutiveInput, EffectiveTaxRates } from "@/types/simulation";
+import type { RateSettings, ExecutiveInput } from "@/types/simulation";
 import { DEFAULT_EFFECTIVE_TAX_RATES } from "../tax-tables";
 
 const defaultRates: RateSettings = {
@@ -312,7 +312,7 @@ describe("calcChildcareContribution", () => {
   it("定期同額600万、事前確定なし", () => {
     const expected = 6000000 * 0.0036;
     expect(
-      calcChildcareContribution(6000000, 0, 0, 0, defaultRates)
+      calcChildcareContribution({ regularSalary: 6000000, bonus1: 0, bonus2: 0, bonus3: 0 }, defaultRates)
     ).toBeCloseTo(expected, 0);
   });
 
@@ -321,14 +321,14 @@ describe("calcChildcareContribution", () => {
     const salary = 800000 * 12;
     const expected = (650000 * 12) * 0.0036;
     expect(
-      calcChildcareContribution(salary, 0, 0, 0, defaultRates)
+      calcChildcareContribution({ regularSalary: salary, bonus1: 0, bonus2: 0, bonus3: 0 }, defaultRates)
     ).toBeCloseTo(expected, 0);
   });
 
   it("事前確定150万超は上限150万", () => {
     const expected = (6000000 + 1500000) * 0.0036;
     expect(
-      calcChildcareContribution(6000000, 2000000, 0, 0, defaultRates)
+      calcChildcareContribution({ regularSalary: 6000000, bonus1: 2000000, bonus2: 0, bonus3: 0 }, defaultRates)
     ).toBeCloseTo(expected, 0);
   });
 });
@@ -382,7 +382,11 @@ describe("calcExecutive - 統合テスト", () => {
       manualHealthInsuranceAmount: 0,
     };
 
-    const result = calcExecutive(exec, defaultRates, true, false, 0);
+    const result = calcExecutive(exec, defaultRates, {
+      isGovernmentHealthInsurance: true,
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
 
     // 給与収入 = 1000万
     expect(result.totalSalaryIncome).toBe(10000000);
@@ -425,7 +429,11 @@ describe("calcExecutive - 統合テスト", () => {
       manualHealthInsuranceAmount: 0,
     };
 
-    const result = calcExecutive(exec, defaultRates, true, false, 0);
+    const result = calcExecutive(exec, defaultRates, {
+      isGovernmentHealthInsurance: true,
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
 
     expect(result.healthInsurance).toBe(0);
     expect(result.pensionInsurance).toBe(0);
@@ -453,7 +461,11 @@ describe("calcExecutive - 統合テスト", () => {
       manualHealthInsuranceAmount: 500000,
     };
 
-    const result = calcExecutive(exec, defaultRates, true, false, 0);
+    const result = calcExecutive(exec, defaultRates, {
+      isGovernmentHealthInsurance: true,
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
 
     expect(result.healthInsurance).toBe(500000);
     expect(result.pensionInsurance).toBeGreaterThan(0);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { RateSettings, CorporateTaxParams } from "@/types/simulation";
 import { Input } from "@/components/ui/input";
 import { formatPercent, parsePercent, formatYen, parseYen } from "@/lib/format";
@@ -17,10 +17,9 @@ function PercentInput({
   onChange: (v: number) => void;
 }) {
   const [display, setDisplay] = useState(() => formatPercent(value));
+  const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    setDisplay(formatPercent(value));
-  }, [value]);
+  const externalDisplay = formatPercent(value);
 
   return (
     <div className="flex items-center gap-2">
@@ -28,9 +27,16 @@ function PercentInput({
       <Input
         type="text"
         className="w-24 text-right h-8 text-sm"
-        value={display}
+        value={isFocused ? display : externalDisplay}
         onChange={(e) => setDisplay(e.target.value)}
-        onBlur={() => onChange(parsePercent(display))}
+        onFocus={() => {
+          setIsFocused(true);
+          setDisplay(externalDisplay);
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          onChange(parsePercent(display));
+        }}
       />
       <span className="text-sm text-muted-foreground">%</span>
     </div>
@@ -47,10 +53,9 @@ function YenInput({
   onChange: (v: number) => void;
 }) {
   const [display, setDisplay] = useState(() => value > 0 ? formatYen(value) : "");
+  const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    setDisplay(value > 0 ? formatYen(value) : "");
-  }, [value]);
+  const externalDisplay = value > 0 ? formatYen(value) : "";
 
   return (
     <div className="flex items-center gap-2">
@@ -58,9 +63,16 @@ function YenInput({
       <Input
         type="text"
         className="w-36 text-right h-8 text-sm"
-        value={display}
+        value={isFocused ? display : externalDisplay}
         onChange={(e) => setDisplay(e.target.value)}
-        onBlur={() => onChange(parseYen(display))}
+        onFocus={() => {
+          setIsFocused(true);
+          setDisplay(externalDisplay);
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          onChange(parseYen(display));
+        }}
       />
       <span className="text-sm text-muted-foreground">円</span>
     </div>

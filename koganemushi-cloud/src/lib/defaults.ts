@@ -1,7 +1,6 @@
 import type {
   RateSettings,
   CorporateTaxParams,
-  EffectiveTaxRates,
   ExecutiveInput,
   SimulationData,
 } from "@/types/simulation";

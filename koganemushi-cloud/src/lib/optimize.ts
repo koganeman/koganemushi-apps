@@ -40,21 +40,27 @@ function calcNetIncome(
   mutated: ExecutiveInput
 ): number {
   const exec = { ...ctx.comparisonExecutives[0], ...mutated };
-  return calcExecutive(
-    exec,
-    ctx.rates,
-    ctx.isGovernmentHealthInsurance,
-    ctx.combineOtherSalaryForInsurance,
-    0
-  ).netIncome;
+  return calcExecutive(exec, ctx.rates, {
+    isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
+    combineOtherSalary: ctx.combineOtherSalaryForInsurance,
+    executiveIndex: 0,
+  }).netIncome;
 }
 
 function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): number {
   const exec = { ...ctx.comparisonExecutives[0], ...mutated };
-  const result = calcExecutive(exec, ctx.rates, ctx.isGovernmentHealthInsurance, ctx.combineOtherSalaryForInsurance, 0);
-  const execPay = exec.regularSalary + exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3;
-  const corporateTax = calcCorporateTaxTotal(ctx.corporateTaxParams, execPay, result.employerSocialInsurance, ctx.effectiveTaxRates);
-  const retainedEarnings = ctx.corporateTaxParams.preTaxCorporateIncome - execPay - result.employerSocialInsurance - corporateTax;
+  const result = calcExecutive(exec, ctx.rates, {
+    isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
+    combineOtherSalary: ctx.combineOtherSalaryForInsurance,
+    executiveIndex: 0,
+  });
+  const execPay = exec.regularSalary +
+    exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3;
+  const corporateTax = calcCorporateTaxTotal(
+    ctx.corporateTaxParams, execPay, result.employerSocialInsurance, ctx.effectiveTaxRates
+  );
+  const retainedEarnings =
+    ctx.corporateTaxParams.preTaxCorporateIncome - execPay - result.employerSocialInsurance - corporateTax;
   return result.netIncome + retainedEarnings;
 }
 

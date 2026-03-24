@@ -23,11 +23,11 @@ import {
  * 令和7年改正対応
  */
 export function salaryIncomeDeduction(salaryIncome: number): number {
-  if (salaryIncome < 650000) return 0;
-  if (salaryIncome <= 1900000) return salaryIncome - 650000;
-  if (salaryIncome < 3600000) return salaryIncome * 0.7 - 80000;
-  if (salaryIncome < 6600000) return salaryIncome * 0.8 - 440000;
-  if (salaryIncome < 8500000) return salaryIncome * 0.9 - 1100000;
+  if (salaryIncome < 650000) { return 0; }
+  if (salaryIncome <= 1900000) { return salaryIncome - 650000; }
+  if (salaryIncome < 3600000) { return salaryIncome * 0.7 - 80000; }
+  if (salaryIncome < 6600000) { return salaryIncome * 0.8 - 440000; }
+  if (salaryIncome < 8500000) { return salaryIncome * 0.9 - 1100000; }
   return salaryIncome - 1950000;
 }
 
@@ -36,11 +36,11 @@ export function salaryIncomeDeduction(salaryIncome: number): number {
  * 令和7年改正対応 - 850万円→1,000万円に上限引き上げ
  */
 export function salaryIncomeDeductionChildcare(salaryIncome: number): number {
-  if (salaryIncome < 650000) return 0;
-  if (salaryIncome <= 1900000) return salaryIncome - 650000;
-  if (salaryIncome < 3600000) return salaryIncome * 0.7 - 80000;
-  if (salaryIncome < 6600000) return salaryIncome * 0.8 - 440000;
-  if (salaryIncome < 10000000) return salaryIncome * 0.9 - 1100000;
+  if (salaryIncome < 650000) { return 0; }
+  if (salaryIncome <= 1900000) { return salaryIncome - 650000; }
+  if (salaryIncome < 3600000) { return salaryIncome * 0.7 - 80000; }
+  if (salaryIncome < 6600000) { return salaryIncome * 0.8 - 440000; }
+  if (salaryIncome < 10000000) { return salaryIncome * 0.9 - 1100000; }
   return salaryIncome - 2100000;
 }
 
@@ -162,7 +162,7 @@ function lookupStandardMonthlyRemuneration(
   table: [number, number][],
   maxGrade: number
 ): number {
-  if (monthlyIncome <= 0) return 0;
+  if (monthlyIncome <= 0) { return 0; }
   const income = Math.floor(monthlyIncome);
   for (const [limit, standardAmount] of table) {
     if (income < limit) {
@@ -174,17 +174,13 @@ function lookupStandardMonthlyRemuneration(
 
 /**
  * 健康保険料の計算（月額）- health関数
- * @param monthlyIncome 月額報酬
- * @param age 年齢
- * @param rates 料率設定
- * @returns 月額の健康保険料（個人負担分）
  */
 export function calcHealthInsuranceMonthly(
   monthlyIncome: number,
   age: number,
   rates: RateSettings
 ): number {
-  if (monthlyIncome <= 0) return 0;
+  if (monthlyIncome <= 0) { return 0; }
 
   const standard = lookupStandardMonthlyRemuneration(
     monthlyIncome,
@@ -204,17 +200,13 @@ export function calcHealthInsuranceMonthly(
 
 /**
  * 厚生年金保険料の計算（月額）- pension関数
- * @param monthlyIncome 月額報酬
- * @param age 年齢
- * @param rates 料率設定
- * @returns 月額の厚生年金保険料（個人負担分）
  */
 export function calcPensionInsuranceMonthly(
   monthlyIncome: number,
   age: number,
   rates: RateSettings
 ): number {
-  if (monthlyIncome <= 0 || age > 70) return 0;
+  if (monthlyIncome <= 0 || age > 70) { return 0; }
 
   const standard = lookupStandardMonthlyRemuneration(
     monthlyIncome,
@@ -231,17 +223,13 @@ export function calcPensionInsuranceMonthly(
 
 /**
  * 賞与の健康保険料 - SocialInsBTS
- * @param bonusAmount 賞与額
- * @param age 年齢
- * @param rates 料率設定
- * @returns 健康保険料（個人負担分）
  */
 export function calcBonusHealthInsurance(
   bonusAmount: number,
   age: number,
   rates: RateSettings
 ): number {
-  if (bonusAmount <= 0) return 0;
+  if (bonusAmount <= 0) { return 0; }
 
   const standardBonus = Math.min(
     Math.floor(bonusAmount / 1000) * 1000,
@@ -262,17 +250,13 @@ export function calcBonusHealthInsurance(
 
 /**
  * 賞与の厚生年金保険料 - SocialInsBPTS
- * @param bonusAmount 賞与額（1回分）
- * @param age 年齢
- * @param rates 料率設定
- * @returns 厚生年金保険料（個人負担分）
  */
 export function calcBonusPensionInsurance(
   bonusAmount: number,
   age: number,
   rates: RateSettings
 ): number {
-  if (bonusAmount <= 0 || age > 65) return 0;
+  if (bonusAmount <= 0 || age > 65) { return 0; }
 
   const standardBonus = Math.min(
     Math.floor(bonusAmount / 1000) * 1000,
@@ -286,16 +270,21 @@ export function calcBonusPensionInsurance(
 // 子ども・子育て拠出金
 // ============================================================
 
+export interface ChildcareContributionInput {
+  regularSalary: number;
+  bonus1: number;
+  bonus2: number;
+  bonus3: number;
+}
+
 /**
  * 子ども・子育て拠出金の計算（会社負担のみ）
  */
 export function calcChildcareContribution(
-  regularSalary: number,
-  bonus1: number,
-  bonus2: number,
-  bonus3: number,
+  input: ChildcareContributionInput,
   rates: RateSettings
 ): number {
+  const { regularSalary, bonus1, bonus2, bonus3 } = input;
   // 定期同額ベース: 月額635,000以上は上限650,000×12
   const salaryBase =
     regularSalary / 12 >= 635000 ? 650000 * 12 : regularSalary;
@@ -354,8 +343,158 @@ export function calcCorporateTaxTotal(
 }
 
 // ============================================================
+// メイン計算: ヘルパー関数
+// ============================================================
+
+export interface CalcExecutiveContext {
+  isGovernmentHealthInsurance: boolean;
+  combineOtherSalary: boolean;
+  executiveIndex: number;
+}
+
+/** 健康保険料の計算（個人負担） */
+function calcPersonalHealthInsurance(
+  exec: ExecutiveInput,
+  rates: RateSettings,
+  monthlyInsuranceBase: number,
+  isGovernmentHealthInsurance: boolean
+): number {
+  if (!exec.socialInsuranceEnrolled) {
+    return 0;
+  }
+  if (exec.manualHealthInsurance) {
+    return exec.manualHealthInsuranceAmount;
+  }
+  if (!isGovernmentHealthInsurance) {
+    return 0;
+  }
+  const monthlySalaryHealth = calcHealthInsuranceMonthly(
+    monthlyInsuranceBase, exec.age, rates
+  ) * 12;
+  const bonusHealth = calcBonusHealthInsurance(
+    exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
+    exec.age, rates
+  );
+  return monthlySalaryHealth + bonusHealth;
+}
+
+/** 厚生年金保険料の計算（個人負担） */
+function calcPersonalPension(
+  exec: ExecutiveInput,
+  rates: RateSettings,
+  monthlyInsuranceBase: number
+): number {
+  if (!exec.socialInsuranceEnrolled) {
+    return 0;
+  }
+  const monthlyPension =
+    calcPensionInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12;
+  const bonusPension =
+    calcBonusPensionInsurance(exec.predeterminedBonus1, exec.age, rates) +
+    calcBonusPensionInsurance(exec.predeterminedBonus2, exec.age, rates) +
+    calcBonusPensionInsurance(exec.predeterminedBonus3, exec.age, rates);
+  return monthlyPension + bonusPension;
+}
+
+/** 個人税金の計算 */
+function calcPersonalTax(
+  exec: ExecutiveInput,
+  taxableIncome: number
+): {
+  incomeTax: number; dividendCreditIncomeTax: number;
+  residentTax: number; dividendCreditResidentTax: number;
+  totalPersonalTax: number;
+} {
+  const incomeTax = calcIncomeTax(taxableIncome);
+  const dividendCreditIncomeTax = calcDividendCreditIncomeTax(taxableIncome, exec.dividendIncome);
+  const residentTax = taxableIncome * 0.1;
+  const dividendCreditResidentTax = calcDividendCreditResidentTax(taxableIncome, exec.dividendIncome);
+
+  const incomeTaxAfterCredit = incomeTax - dividendCreditIncomeTax - exec.taxCredit;
+  const incomeTaxPortion = incomeTaxAfterCredit > 0
+    ? Math.floor(incomeTaxAfterCredit / 100) * 100
+    : 0;
+  const residentTaxPortion = residentTax - dividendCreditResidentTax > 0
+    ? residentTax - dividendCreditResidentTax
+    : 0;
+
+  return {
+    incomeTax,
+    dividendCreditIncomeTax,
+    residentTax,
+    dividendCreditResidentTax,
+    totalPersonalTax: incomeTaxPortion + residentTaxPortion,
+  };
+}
+
+/** 会社負担社会保険料の計算 */
+function calcEmployerInsurance(
+  exec: ExecutiveInput,
+  rates: RateSettings,
+  monthlyInsuranceBase: number,
+  isGovernmentHealthInsurance: boolean
+): number {
+  if (!exec.socialInsuranceEnrolled) {
+    return 0;
+  }
+
+  const employerHealthMonthly = isGovernmentHealthInsurance
+    ? calcHealthInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12
+    : 0;
+  const employerPensionMonthly =
+    calcPensionInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12;
+
+  const childcare = calcChildcareContribution({
+    regularSalary: exec.regularSalary,
+    bonus1: exec.predeterminedBonus1,
+    bonus2: exec.predeterminedBonus2,
+    bonus3: exec.predeterminedBonus3,
+  }, rates);
+
+  const employerBonusPension =
+    calcBonusPensionInsurance(exec.predeterminedBonus1, exec.age, rates) +
+    calcBonusPensionInsurance(exec.predeterminedBonus2, exec.age, rates) +
+    calcBonusPensionInsurance(exec.predeterminedBonus3, exec.age, rates);
+
+  const employerBonusHealth = isGovernmentHealthInsurance
+    ? calcBonusHealthInsurance(
+        exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
+        exec.age, rates
+      )
+    : 0;
+
+  return employerHealthMonthly + employerPensionMonthly +
+    childcare + employerBonusPension + employerBonusHealth;
+}
+
+// ============================================================
 // メイン計算: 役員1名分
 // ============================================================
+
+/** 給与収入・所得・社保ベースの計算 */
+function calcIncomeBase(exec: ExecutiveInput, ctx: CalcExecutiveContext) {
+  const totalSalaryIncome =
+    exec.regularSalary + exec.predeterminedBonus1 +
+    exec.predeterminedBonus2 + exec.predeterminedBonus3 +
+    exec.otherSalaryIncome - exec.definedBenefitPension;
+  const salaryIncomeAfterDeduction = calcSalaryIncome(
+    totalSalaryIncome, exec.childcareHousehold
+  );
+  const totalIncome = salaryIncomeAfterDeduction + exec.dividendIncome + exec.otherIncome;
+  let insuranceSalaryBase = exec.regularSalary - exec.definedBenefitPension;
+  if (ctx.combineOtherSalary && ctx.executiveIndex === 0) {
+    insuranceSalaryBase += exec.otherSalaryIncome;
+  }
+  return { totalSalaryIncome, salaryIncomeAfterDeduction, totalIncome, insuranceSalaryBase };
+}
+
+/** 手取り額の計算 */
+function calcNetIncome(exec: ExecutiveInput, totalTaxAndInsurance: number): number {
+  const grossIncome = exec.regularSalary + exec.predeterminedBonus1 +
+    exec.predeterminedBonus2 + exec.predeterminedBonus3 + exec.otherSalaryIncome;
+  return grossIncome - exec.definedBenefitPension +
+    exec.dividendIncome + exec.otherIncome - totalTaxAndInsurance;
+}
 
 /**
  * 役員1名分の全計算を実行
@@ -363,216 +502,37 @@ export function calcCorporateTaxTotal(
 export function calcExecutive(
   exec: ExecutiveInput,
   rates: RateSettings,
-  isGovernmentHealthInsurance: boolean,
-  combineOtherSalary: boolean,
-  executiveIndex: number
+  ctx: CalcExecutiveContext
 ): ExecutiveResult {
-  // 1. 給与収入の計算
-  const totalSalaryIncome =
-    exec.regularSalary +
-    exec.predeterminedBonus1 +
-    exec.predeterminedBonus2 +
-    exec.predeterminedBonus3 +
-    exec.otherSalaryIncome -
-    exec.definedBenefitPension;
+  const base = calcIncomeBase(exec, ctx);
+  const monthlyInsuranceBase = base.insuranceSalaryBase / 12;
 
-  // 2. 給与所得金額
-  const salaryIncomeAfterDeduction = calcSalaryIncome(
-    totalSalaryIncome,
-    exec.childcareHousehold
+  const healthInsurance = calcPersonalHealthInsurance(
+    exec, rates, monthlyInsuranceBase, ctx.isGovernmentHealthInsurance
   );
-
-  // 3. 合計所得金額
-  const totalIncome =
-    salaryIncomeAfterDeduction + exec.dividendIncome + exec.otherIncome;
-
-  // --- 社会保険料の計算 ---
-  // 社保報酬ベース（定期同額 - 確定給付年金掛金）
-  let insuranceSalaryBase = exec.regularSalary - exec.definedBenefitPension;
-
-  // 他の給与社保合算（1人目のみ）
-  if (combineOtherSalary && executiveIndex === 0) {
-    insuranceSalaryBase += exec.otherSalaryIncome;
-  }
-
-  const monthlyInsuranceBase = insuranceSalaryBase / 12;
-
-  // 健康保険料
-  let healthInsurance: number;
-  if (!exec.socialInsuranceEnrolled) {
-    healthInsurance = 0;
-  } else if (exec.manualHealthInsurance) {
-    healthInsurance = exec.manualHealthInsuranceAmount;
-  } else if (isGovernmentHealthInsurance) {
-    // 定期同額ベース
-    const monthlySalaryHealth = calcHealthInsuranceMonthly(
-      monthlyInsuranceBase,
-      exec.age,
-      rates
-    ) * 12;
-    // 賞与ベース（事前確定合算）
-    const bonusHealth = calcBonusHealthInsurance(
-      exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
-      exec.age,
-      rates
-    );
-    healthInsurance = monthlySalaryHealth + bonusHealth;
-  } else {
-    healthInsurance = 0;
-  }
-
-  // 厚生年金保険料
-  let pensionInsurance: number;
-  if (!exec.socialInsuranceEnrolled) {
-    pensionInsurance = 0;
-  } else {
-    // 定期同額ベース
-    const monthlyPension =
-      calcPensionInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12;
-    // 賞与ベース（各回ごとに上限判定）
-    const bonusPension =
-      calcBonusPensionInsurance(exec.predeterminedBonus1, exec.age, rates) +
-      calcBonusPensionInsurance(exec.predeterminedBonus2, exec.age, rates) +
-      calcBonusPensionInsurance(exec.predeterminedBonus3, exec.age, rates);
-    pensionInsurance = monthlyPension + bonusPension;
-  }
-
-  // 社会保険料計
+  const pensionInsurance = calcPersonalPension(exec, rates, monthlyInsuranceBase);
   const totalSocialInsurance = healthInsurance + pensionInsurance;
+  const basicDeduction = calcBasicDeduction(base.totalIncome);
 
-  // 4. 社会保険料控除額 = 社会保険料計
-  const socialInsuranceDeduction = totalSocialInsurance;
-
-  // 5. 基礎控除額
-  const basicDeduction = calcBasicDeduction(totalIncome);
-
-  // 6. 課税所得金額（1,000円未満切り捨て、マイナスは0）
-  const taxableIncomeRaw =
-    salaryIncomeAfterDeduction +
-    exec.dividendIncome +
-    exec.otherIncome -
-    socialInsuranceDeduction -
-    exec.otherDeductions -
-    basicDeduction;
+  const taxableIncomeRaw = base.salaryIncomeAfterDeduction +
+    exec.dividendIncome + exec.otherIncome -
+    totalSocialInsurance - exec.otherDeductions - basicDeduction;
   const taxableIncome =
-    taxableIncomeRaw > 0
-      ? Math.floor(taxableIncomeRaw / 1000) * 1000
-      : 0;
+    taxableIncomeRaw > 0 ? Math.floor(taxableIncomeRaw / 1000) * 1000 : 0;
 
-  // 7. 所得税（復興特別所得税込み）
-  const incomeTax = calcIncomeTax(taxableIncome);
-
-  // 8. 配当控除額（所得税）
-  const dividendCreditIncomeTax = calcDividendCreditIncomeTax(
-    taxableIncome,
-    exec.dividendIncome
+  const tax = calcPersonalTax(exec, taxableIncome);
+  const totalTaxAndInsurance = tax.totalPersonalTax + totalSocialInsurance;
+  const netIncome = calcNetIncome(exec, totalTaxAndInsurance);
+  const employerSocialInsurance = calcEmployerInsurance(
+    exec, rates, monthlyInsuranceBase, ctx.isGovernmentHealthInsurance
   );
-
-  // 9. 住民税 = 課税所得 × 10%
-  const residentTax = taxableIncome * 0.1;
-
-  // 10. 配当控除額（住民税）
-  const dividendCreditResidentTax = calcDividendCreditResidentTax(
-    taxableIncome,
-    exec.dividendIncome
-  );
-
-  // 11. 個人税金合計
-  const incomeTaxAfterCredit = incomeTax - dividendCreditIncomeTax - exec.taxCredit;
-  const incomeTaxPortion =
-    incomeTaxAfterCredit > 0
-      ? Math.floor(incomeTaxAfterCredit / 100) * 100
-      : 0;
-  const residentTaxPortion =
-    residentTax - dividendCreditResidentTax > 0
-      ? residentTax - dividendCreditResidentTax
-      : 0;
-  const totalPersonalTax = incomeTaxPortion + residentTaxPortion;
-
-  // 12. 税金＋社会保険料
-  const totalTaxAndInsurance = totalPersonalTax + totalSocialInsurance;
-
-  // 13. 手取り額
-  const grossIncome =
-    exec.regularSalary +
-    exec.predeterminedBonus1 +
-    exec.predeterminedBonus2 +
-    exec.predeterminedBonus3 +
-    exec.otherSalaryIncome;
-  const netIncome =
-    grossIncome -
-    exec.definedBenefitPension +
-    exec.dividendIncome +
-    exec.otherIncome -
-    totalTaxAndInsurance;
-
-  // 14. 会社負担社会保険料
-  let employerSocialInsurance: number;
-  if (!exec.socialInsuranceEnrolled) {
-    employerSocialInsurance = 0;
-  } else {
-    // 定期同額ベースの健保・年金（会社負担）
-    const employerHealthMonthly = isGovernmentHealthInsurance
-      ? calcHealthInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12
-      : 0;
-    const employerPensionMonthly =
-      calcPensionInsuranceMonthly(monthlyInsuranceBase, exec.age, rates) * 12;
-
-    // 子育て拠出金
-    const childcare = calcChildcareContribution(
-      exec.regularSalary,
-      exec.predeterminedBonus1,
-      exec.predeterminedBonus2,
-      exec.predeterminedBonus3,
-      rates
-    );
-
-    // 事前確定の厚生年金（会社負担）
-    const employerBonusPension =
-      calcBonusPensionInsurance(exec.predeterminedBonus1, exec.age, rates) +
-      calcBonusPensionInsurance(exec.predeterminedBonus2, exec.age, rates) +
-      calcBonusPensionInsurance(exec.predeterminedBonus3, exec.age, rates);
-
-    // 事前確定の健保（会社負担）
-    const employerBonusHealth = isGovernmentHealthInsurance
-      ? calcBonusHealthInsurance(
-          exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
-          exec.age,
-          rates
-        )
-      : 0;
-
-    employerSocialInsurance =
-      employerHealthMonthly +
-      employerPensionMonthly +
-      childcare +
-      employerBonusPension +
-      employerBonusHealth;
-  }
-
-  // 15. 社会保険料合計
-  const totalSocialInsuranceCombined =
-    totalSocialInsurance + employerSocialInsurance;
 
   return {
-    totalSalaryIncome,
-    salaryIncomeAfterDeduction,
-    totalIncome,
-    socialInsuranceDeduction,
-    basicDeduction,
-    taxableIncome,
-    incomeTax,
-    dividendCreditIncomeTax,
-    residentTax,
-    dividendCreditResidentTax,
-    totalPersonalTax,
-    healthInsurance,
-    pensionInsurance,
-    totalSocialInsurance,
-    totalTaxAndInsurance,
-    netIncome,
+    ...base, socialInsuranceDeduction: totalSocialInsurance, basicDeduction,
+    taxableIncome, ...tax, healthInsurance, pensionInsurance,
+    totalSocialInsurance, totalTaxAndInsurance, netIncome,
     employerSocialInsurance,
-    totalSocialInsuranceCombined,
+    totalSocialInsuranceCombined: totalSocialInsurance + employerSocialInsurance,
   };
 }
 

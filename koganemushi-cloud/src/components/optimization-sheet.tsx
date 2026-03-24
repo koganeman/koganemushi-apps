@@ -121,10 +121,7 @@ export function OptimizationSheet() {
           配当所得を変化させ（定期同額 = 法人所得 − 配当）手取り額が最大になる値を探します
         </p>
         {dividendResult && (
-          <DividendTable
-            rows={dividendResult.rows}
-            optimalDividend={dividendResult.optimalDividend}
-          />
+          <DividendTable rows={dividendResult.rows} />
         )}
       </section>
 
@@ -154,7 +151,7 @@ export function OptimizationSheet() {
           事前確定給与1回目を変化させて手取り額が最大になる値を探します
         </p>
         {bonusResult && (
-          <BonusTable rows={bonusResult.rows} optimalBonus={bonusResult.optimalBonus} />
+          <BonusTable rows={bonusResult.rows} />
         )}
       </section>
     </div>
@@ -180,11 +177,12 @@ function SalaryTable({
         <tbody>
           {rows.map((row, i) => {
             const isMax = row.combinedCF === maxCF;
-            const rowClass = isMax
-              ? "bg-yellow-200 font-bold"
-              : row.isBaseline
-              ? "bg-blue-50 font-semibold"
-              : "";
+            let rowClass = "";
+            if (isMax) {
+              rowClass = "bg-yellow-200 font-bold";
+            } else if (row.isBaseline) {
+              rowClass = "bg-blue-50 font-semibold";
+            }
             return (
               <tr key={i} className={rowClass}>
                 <td className="border border-gray-300 px-3 py-0.5 text-right">
@@ -208,10 +206,8 @@ function SalaryTable({
 
 function DividendTable({
   rows,
-  optimalDividend,
 }: {
   rows: { dividend: number; salary: number; netIncome: number; combinedCF: number }[];
-  optimalDividend: number;
 }) {
   const maxCF = Math.max(...rows.map((r) => r.combinedCF));
   return (
@@ -253,10 +249,8 @@ function DividendTable({
 
 function BonusTable({
   rows,
-  optimalBonus,
 }: {
   rows: { bonus: number; netIncome: number; combinedCF: number }[];
-  optimalBonus: number;
 }) {
   const maxCF = Math.max(...rows.map((r) => r.combinedCF));
   return (

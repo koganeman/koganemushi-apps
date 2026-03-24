@@ -1,9 +1,7 @@
 "use client";
 
-import type { CorporateTaxParams, EffectiveTaxRates } from "@/types/simulation";
 import { formatYen } from "@/lib/format";
 import { useSimulationStore } from "@/stores/simulation-store";
-import { useShallow } from "zustand/react/shallow";
 import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
 
 // 静的参照テーブル（令和元年10月1日以降開始事業年度）
@@ -38,14 +36,12 @@ interface TaxCalcSection {
 }
 
 function formatTaxRate(income: number, taxTotal: number): string {
-  if (income <= 0) return "—";
+  if (income <= 0) { return "—"; }
   return (taxTotal / income * 100).toFixed(2);
 }
 
 function TaxCalcTable({ title, corporateIncome, perCapitaLevy, carryForwardLoss, taxTotal }: TaxCalcSection) {
   const incomeAfterLoss = corporateIncome - carryForwardLoss;
-  const taxExcludingLevy = taxTotal > perCapitaLevy ? taxTotal - perCapitaLevy : 0;
-  // 法人税・住民税・事業税 = incomeAfterLoss <= 0 の場合は均等割のみ、それ以外は合計税額
   const taxAndOthers = incomeAfterLoss <= 0 ? perCapitaLevy : taxTotal;
 
   return (
@@ -62,7 +58,8 @@ function TaxCalcTable({ title, corporateIncome, perCapitaLevy, carryForwardLoss,
             法人所得金額
           </div>
           <div className="px-2 py-0.5 text-xs text-right font-bold">
-            {corporateIncome > 0 ? formatYen(corporateIncome) : corporateIncome === 0 ? "" : `△${formatYen(Math.abs(corporateIncome))}`}
+            {corporateIncome > 0 && formatYen(corporateIncome)}
+            {corporateIncome < 0 && `△${formatYen(Math.abs(corporateIncome))}`}
           </div>
         </div>
         {/* 均等割 */}

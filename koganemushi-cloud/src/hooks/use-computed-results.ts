@@ -40,7 +40,11 @@ function usePlanResults(executives: ExecutiveInput[]): PlanResults {
   const results = useMemo(
     () =>
       executives.map((exec, i) =>
-        calcExecutive(exec, rates, governmentHealthInsurance, combineOtherSalaryForInsurance, i)
+        calcExecutive(exec, rates, {
+          isGovernmentHealthInsurance: governmentHealthInsurance,
+          combineOtherSalary: combineOtherSalaryForInsurance,
+          executiveIndex: i,
+        })
       ),
     [executives, rates, governmentHealthInsurance, combineOtherSalaryForInsurance]
   );

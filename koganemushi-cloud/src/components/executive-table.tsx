@@ -55,6 +55,67 @@ interface ExecutiveTableProps {
   visibleCount?: number;
 }
 
+interface CellContext {
+  exec: ExecutiveInput;
+  result: ExecutiveResult | undefined;
+  index: number;
+  updateField: (i: number, field: keyof ExecutiveInput, v: string | number | boolean) => void;
+}
+
+/** 健保任意入力セル */
+function renderManualHealthCell(ctx: CellContext): React.ReactNode {
+  return (
+    <td key={ctx.index} className="border px-0 py-0 bg-yellow-50">
+      <CellInput
+        value={ctx.exec.manualHealthInsuranceAmount}
+        onChange={(v) => ctx.updateField(ctx.index, "manualHealthInsuranceAmount", v)}
+        bg="bg-yellow-50"
+      />
+    </td>
+  );
+}
+
+/** 入力セル */
+function renderInputCell(row: RowDef, ctx: CellContext): React.ReactNode {
+  const field = row.field!;
+  return (
+    <td key={ctx.index} className={`border px-0 py-0 ${row.inputBg ?? ""}`}>
+      <CellInput
+        value={ctx.exec[field] as string | number}
+        onChange={(v) => ctx.updateField(ctx.index, field, v)}
+        isName={field === "name"}
+        isAge={field === "age"}
+        bg={row.inputBg}
+      />
+    </td>
+  );
+}
+
+/** 計算結果セル */
+function renderComputedCell(row: RowDef, ctx: CellContext): React.ReactNode {
+  const val = ctx.result![row.resultField!] as number;
+  const bgClass = row.resultField === "netIncome" ? "bg-green-50 font-bold" : "bg-blue-50";
+  return (
+    <td key={ctx.index} className={`border px-1 py-0.5 text-right ${bgClass}`}>
+      {val !== 0 ? formatYen(val) : ""}
+    </td>
+  );
+}
+
+/** 健康保険任意入力判定 */
+function isManualHealthRow(row: RowDef, exec: ExecutiveInput): boolean {
+  return row.resultField === "healthInsurance" &&
+    exec.manualHealthInsurance && exec.socialInsuranceEnrolled;
+}
+
+/** 各役員セルのレンダリング */
+function renderExecCell(row: RowDef, ctx: CellContext): React.ReactNode {
+  if (isManualHealthRow(row, ctx.exec)) { return renderManualHealthCell(ctx); }
+  if (row.key === "input" && row.field) { return renderInputCell(row, ctx); }
+  if (row.key === "computed" && row.resultField && ctx.result) { return renderComputedCell(row, ctx); }
+  return <td key={ctx.index} className="border px-1 py-0.5" />;
+}
+
 function CellInput({
   value,
   onChange,
@@ -112,7 +173,9 @@ export function ExecutiveTable({
   const updateExecutive = useSimulationStore((s) =>
     plan === "current" ? s.updateCurrentExecutive : s.updateComparisonExecutive
   );
-  const { results, totals } = plan === "current" ? useCurrentResults() : useComparisonResults();
+  const currentData = useCurrentResults();
+  const comparisonData = useComparisonResults();
+  const { results, totals } = plan === "current" ? currentData : comparisonData;
 
   const updateField = useCallback(
     (index: number, field: keyof ExecutiveInput, value: string | number | boolean) => {
@@ -205,57 +268,9 @@ export function ExecutiveTable({
               </td>
 
               {/* 各役員のセル */}
-              {visible.map((exec, i) => {
-                const result = results[i];
-
-                // 健康保険料: 任意入力ONの場合は入力セルに切替
-                if (row.resultField === "healthInsurance" && exec.manualHealthInsurance && exec.socialInsuranceEnrolled) {
-                  return (
-                    <td key={i} className="border px-0 py-0 bg-yellow-50">
-                      <CellInput
-                        value={exec.manualHealthInsuranceAmount}
-                        onChange={(v) => updateField(i, "manualHealthInsuranceAmount", v)}
-                        bg="bg-yellow-50"
-                      />
-                    </td>
-                  );
-                }
-
-                if (row.key === "input" && row.field) {
-                  const field = row.field;
-                  const value = exec[field];
-
-                  return (
-                    <td key={i} className={`border px-0 py-0 ${row.inputBg ?? ""}`}>
-                      <CellInput
-                        value={value as string | number}
-                        onChange={(v) => updateField(i, field, v)}
-                        isName={field === "name"}
-                        isAge={field === "age"}
-                        bg={row.inputBg}
-                      />
-                    </td>
-                  );
-                }
-
-                if (row.key === "computed" && row.resultField && result) {
-                  const val = result[row.resultField] as number;
-                  return (
-                    <td
-                      key={i}
-                      className={`border px-1 py-0.5 text-right ${
-                        row.resultField === "netIncome"
-                          ? "bg-green-50 font-bold"
-                          : "bg-blue-50"
-                      }`}
-                    >
-                      {val !== 0 ? formatYen(val) : ""}
-                    </td>
-                  );
-                }
-
-                return <td key={i} className="border px-1 py-0.5" />;
-              })}
+              {visible.map((exec, i) =>
+                renderExecCell(row, { exec, result: results[i], index: i, updateField })
+              )}
 
               {/* 合計列 */}
               <td
@@ -265,11 +280,7 @@ export function ExecutiveTable({
               >
                 {row.resultField && totals
                   ? formatYen(totals[row.resultField] as number)
-                  : row.field === "name" || row.field === "age"
-                    ? ""
-                    : row.field && totals
-                      ? ""
-                      : ""}
+                  : ""}
               </td>
             </tr>
           ))}

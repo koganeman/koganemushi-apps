@@ -7,8 +7,8 @@ import { useCurrentResults, useComparisonResults, usePlan2Results } from "@/hook
 
 /** 差引表示用: 正負両方に対応したフォーマット（0は空白） */
 function fmtDiff(value: number): string {
-  if (value === 0) return "";
-  if (value < 0) return `△${Math.abs(Math.round(value)).toLocaleString("ja-JP")}`;
+  if (value === 0) { return ""; }
+  if (value < 0) { return `△${Math.abs(Math.round(value)).toLocaleString("ja-JP")}`; }
   return Math.round(value).toLocaleString("ja-JP");
 }
 
@@ -19,7 +19,7 @@ function diffClass(value: number): string {
 
 /** 0 を空白にしないバージョン */
 function fmtVal(value: number): string {
-  if (value === 0) return "";
+  if (value === 0) { return ""; }
   return Math.round(value).toLocaleString("ja-JP");
 }
 

@@ -2,7 +2,7 @@
  * 数値を日本円形式でフォーマット（カンマ区切り）
  */
 export function formatYen(value: number): string {
-  if (value === 0) return "";
+  if (value === 0) { return ""; }
   return Math.round(value).toLocaleString("ja-JP");
 }
 
