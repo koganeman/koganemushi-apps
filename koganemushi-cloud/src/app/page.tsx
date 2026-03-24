@@ -12,18 +12,20 @@ import { RateSettingsPanel } from "@/components/rate-settings";
 import { ExecutiveTable } from "@/components/executive-table";
 import { HojinzeiSheet } from "@/components/hojinzei-sheet";
 import { HoukokushoSheet } from "@/components/houkokusho-sheet";
+import { OptimizationSheet } from "@/components/optimization-sheet";
 import { calcExecutive, sumResults, calcCorporateTaxTotal } from "@/lib/calc-engine";
 import { createDefaultSimulationData, createEmptyExecutive } from "@/lib/defaults";
 import { formatYen } from "@/lib/format";
 
 const VISIBLE_COUNT = 10;
 
-type Tab = "simulation" | "hojinzei" | "houkokusho";
+type Tab = "simulation" | "hojinzei" | "houkokusho" | "saitekika";
 
 const TAB_LABELS: { id: Tab; label: string }[] = [
   { id: "simulation", label: "シミュレーション" },
   { id: "hojinzei", label: "法人税" },
   { id: "houkokusho", label: "報告書" },
+  { id: "saitekika", label: "最適化" },
 ];
 
 export default function SimulationPage() {
@@ -184,6 +186,22 @@ export default function SimulationPage() {
     setPlan2Executives(data.comparisonExecutives.map((e) => ({ ...e })));
   }, [data.comparisonExecutives]);
 
+  const handleApplyDividend = useCallback((dividend: number, salary: number) => {
+    setData((prev) => {
+      const updated = [...prev.comparisonExecutives];
+      updated[0] = { ...updated[0], dividendIncome: dividend, regularSalary: salary };
+      return { ...prev, comparisonExecutives: updated };
+    });
+  }, []);
+
+  const handleApplyBonus = useCallback((bonus: number) => {
+    setData((prev) => {
+      const updated = [...prev.comparisonExecutives];
+      updated[0] = { ...updated[0], predeterminedBonus1: bonus };
+      return { ...prev, comparisonExecutives: updated };
+    });
+  }, []);
+
   // 現状転記
   const handleTransfer = useCallback(() => {
     setData((prev) => {
@@ -323,6 +341,21 @@ export default function SimulationPage() {
             currentCorporateTax={currentCorporateTax}
             comparisonCorporateIncome={comparisonCorporateIncome}
             comparisonCorporateTax={comparisonCorporateTax}
+          />
+        )}
+
+        {/* 最適化タブ */}
+        {activeTab === "saitekika" && (
+          <OptimizationSheet
+            executives={data.currentExecutives}
+            comparisonExecutives={data.comparisonExecutives}
+            rates={data.rates}
+            isGovernmentHealthInsurance={data.governmentHealthInsurance}
+            combineOtherSalaryForInsurance={data.combineOtherSalaryForInsurance}
+            corporateTaxParams={data.corporateTaxParams}
+            effectiveTaxRates={data.effectiveTaxRates}
+            onApplyDividend={handleApplyDividend}
+            onApplyBonus={handleApplyBonus}
           />
         )}
 
