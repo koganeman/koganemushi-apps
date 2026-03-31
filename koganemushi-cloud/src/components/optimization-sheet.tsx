@@ -6,7 +6,6 @@ import { formatYen } from "@/lib/format";
 import {
   sweepRegularSalary,
   sweepDividend,
-  sweepPredeterminedBonus,
 } from "@/lib/optimize";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useShallow } from "zustand/react/shallow";
@@ -21,7 +20,6 @@ export function OptimizationSheet() {
     corporateTaxParams,
     effectiveTaxRates,
     applyDividend,
-    applyBonus,
   } = useSimulationStore(
     useShallow((s) => ({
       executives: s.currentExecutives,
@@ -32,7 +30,6 @@ export function OptimizationSheet() {
       corporateTaxParams: s.corporateTaxParams,
       effectiveTaxRates: s.effectiveTaxRates,
       applyDividend: s.applyDividend,
-      applyBonus: s.applyBonus,
     }))
   );
   const [salarySweep, setSalarySweep] = useState<
@@ -43,11 +40,6 @@ export function OptimizationSheet() {
     optimalDividend: number;
     optimalSalary: number;
   } | null>(null);
-  const [bonusResult, setBonusResult] = useState<{
-    rows: { bonus: number; netIncome: number; combinedCF: number }[];
-    optimalBonus: number;
-  } | null>(null);
-
   const ctx = {
     executives,
     comparisonExecutives,
@@ -125,35 +117,6 @@ export function OptimizationSheet() {
         )}
       </section>
 
-      {/* セクション3: 事前確定最適化 */}
-      <section>
-        <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-base font-bold">事前確定最適化</h2>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={noIncome}
-            onClick={() => setBonusResult(sweepPredeterminedBonus(ctx))}
-          >
-            試算
-          </Button>
-          {bonusResult && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => applyBonus(bonusResult.optimalBonus)}
-            >
-              適用
-            </Button>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 mb-2">
-          事前確定給与1回目を変化させて手取り額が最大になる値を探します
-        </p>
-        {bonusResult && (
-          <BonusTable rows={bonusResult.rows} />
-        )}
-      </section>
     </div>
   );
 }
@@ -247,41 +210,3 @@ function DividendTable({
   );
 }
 
-function BonusTable({
-  rows,
-}: {
-  rows: { bonus: number; netIncome: number; combinedCF: number }[];
-}) {
-  const maxCF = Math.max(...rows.map((r) => r.combinedCF));
-  return (
-    <div className="overflow-auto">
-      <table className="text-xs border-collapse border border-gray-300 w-auto">
-        <thead>
-          <tr className="bg-[#d6e4f7]">
-            <th className="border border-gray-300 px-3 py-1 text-right">事前確定1回目</th>
-            <th className="border border-gray-300 px-3 py-1 text-right">手取り額</th>
-            <th className="border border-gray-300 px-3 py-1 text-right">合算CF（差分）</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => {
-            const isMax = row.combinedCF === maxCF;
-            return (
-              <tr key={i} className={isMax ? "bg-yellow-200 font-bold" : ""}>
-                <td className="border border-gray-300 px-3 py-0.5 text-right">
-                  {formatYen(row.bonus)}
-                </td>
-                <td className="border border-gray-300 px-3 py-0.5 text-right">
-                  {formatYen(row.netIncome)}
-                </td>
-                <td className="border border-gray-300 px-3 py-0.5 text-right">
-                  {formatYen(row.combinedCF)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}

@@ -3,7 +3,6 @@ import {
   generateSteps,
   sweepRegularSalary,
   sweepDividend,
-  sweepPredeterminedBonus,
   type OptimizeContext,
 } from "../optimize";
 import type { ExecutiveInput, RateSettings } from "@/types/simulation";
@@ -186,35 +185,6 @@ describe("sweepDividend", () => {
 });
 
 // ============================================================
-// sweepPredeterminedBonus
-// ============================================================
-describe("sweepPredeterminedBonus", () => {
-  const ctx = makeContext();
-  const result = sweepPredeterminedBonus(ctx);
-
-  it("40行返す", () => {
-    expect(result.rows).toHaveLength(40);
-  });
-
-  it("全行のbonusは0以上", () => {
-    for (const row of result.rows) {
-      expect(row.bonus).toBeGreaterThanOrEqual(0);
-    }
-  });
-
-  it("最適ボーナスが行内に存在する", () => {
-    const found = result.rows.find((r) => r.bonus === result.optimalBonus);
-    expect(found).toBeDefined();
-  });
-
-  it("最適ボーナスのnetIncomeが全行の中で最大", () => {
-    const maxNetIncome = Math.max(...result.rows.map((r) => r.netIncome));
-    const optimal = result.rows.find((r) => r.bonus === result.optimalBonus)!;
-    expect(optimal.netIncome).toBe(maxNetIncome);
-  });
-});
-
-// ============================================================
 // エッジケース: 法人所得0
 // ============================================================
 describe("エッジケース: 法人所得0", () => {
@@ -231,8 +201,4 @@ describe("エッジケース: 法人所得0", () => {
     expect(result.rows.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("sweepPredeterminedBonus: 所得0でも1行以上返す", () => {
-    const result = sweepPredeterminedBonus(ctx);
-    expect(result.rows.length).toBeGreaterThanOrEqual(1);
-  });
 });

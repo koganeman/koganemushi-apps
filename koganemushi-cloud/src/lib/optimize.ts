@@ -120,26 +120,3 @@ export function sweepDividend(ctx: OptimizeContext): {
     optimalSalary: best.salary,
   };
 }
-
-/**
- * 事前確定最適化: predeterminedBonus1 を 0〜preTaxCorporateIncome で 40ステップ
- */
-export function sweepPredeterminedBonus(ctx: OptimizeContext): {
-  rows: { bonus: number; netIncome: number; combinedCF: number }[];
-  optimalBonus: number;
-} {
-  const { preTaxCorporateIncome } = ctx.corporateTaxParams;
-  const baseline = calcCombinedCFValue(ctx, ctx.comparisonExecutives[0]);
-  const steps = generateSteps(0, preTaxCorporateIncome, 40);
-  const rows = steps.map((bonus) => {
-    const mutated = { ...ctx.comparisonExecutives[0], predeterminedBonus1: bonus };
-    return {
-      bonus,
-      netIncome: calcNetIncome(ctx, mutated),
-      combinedCF: calcCombinedCFValue(ctx, mutated) - baseline,
-    };
-  });
-
-  const best = rows.reduce((a, b) => (b.netIncome > a.netIncome ? b : a));
-  return { rows, optimalBonus: best.bonus };
-}
