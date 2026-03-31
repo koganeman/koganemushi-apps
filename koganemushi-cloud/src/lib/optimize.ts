@@ -59,8 +59,9 @@ function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): num
   const corporateTax = calcCorporateTaxTotal(
     ctx.corporateTaxParams, execPay, result.employerSocialInsurance, ctx.effectiveTaxRates
   );
+  const dividendTotal = exec.dividendIncome;
   const retainedEarnings =
-    ctx.corporateTaxParams.preTaxCorporateIncome - execPay - result.employerSocialInsurance - corporateTax;
+    ctx.corporateTaxParams.preTaxCorporateIncome - execPay - dividendTotal - result.employerSocialInsurance - corporateTax;
   return result.netIncome + retainedEarnings;
 }
 
@@ -97,12 +98,13 @@ export function sweepDividend(ctx: OptimizeContext): {
   optimalDividend: number;
   optimalSalary: number;
 } {
-  const { preTaxCorporateIncome } = ctx.corporateTaxParams;
-  const baseline = calcCombinedCFValue(ctx, ctx.comparisonExecutives[0]);
-  const steps = generateSteps(0, preTaxCorporateIncome, 40);
+  const currentExec = ctx.executives[0];
+  const currentSalary = currentExec.regularSalary;
+  const baseline = calcCombinedCFValue(ctx, currentExec);
+  const steps = generateSteps(0, currentSalary, 40);
   const rows = steps.map((dividend) => {
-    const salary = Math.max(0, preTaxCorporateIncome - dividend);
-    const mutated = { ...ctx.comparisonExecutives[0], dividendIncome: dividend, regularSalary: salary };
+    const salary = Math.max(0, currentSalary - dividend);
+    const mutated = { ...currentExec, dividendIncome: dividend, regularSalary: salary };
     return {
       dividend,
       salary,
