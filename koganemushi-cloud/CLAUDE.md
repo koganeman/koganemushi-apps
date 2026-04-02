@@ -1,6 +1,13 @@
 # koganemushi-cloud
 
-役員報酬シミュレーションWebアプリ。Excel/VBAツール `yen_yakuin1.89.xlsm` のWeb移植版。
+税金・節税シミュレーション群のWebアプリ。役員報酬シミュレーション（`/`）を皮切りに、複数の機能を追加予定。
+
+## URL一覧
+
+| URL | 機能 | 状態 |
+|-----|------|------|
+| `/` | 役員報酬シミュレーション | 稼働中 |
+| `/hojinnari` | 法人なりシミュレーション | 開発中 |
 
 ## コマンド
 
@@ -13,8 +20,10 @@ npx vitest run   # テスト実行
 
 ## 参考資料
 
-- `../docs/企画書.md` — プロジェクト概要・企画書
-- `../docs/企画書を作るに当たって.md` — 企画書作成の背景
+- `../docs/yakuin-hoshu/企画書.md` — 役員報酬シミュレーション 企画書
+- `../docs/yakuin-hoshu/企画書を作るに当たって.md` — 役員報酬 企画書作成の背景
+- `../docs/yakuin-hoshu/計算ロジック仕様書.md` — 役員報酬 計算ロジック仕様書
+- `../docs/hojinnari/企画書.md` — 法人なりシミュレーション 企画書（作成予定）
 
 ## アーキテクチャ
 
@@ -36,9 +45,11 @@ src/
     format.ts               # 数値フォーマット（formatYen/parseYen）
   types/simulation.ts       # 全型定義
 docs/
-  yen_yakuin1.89.xlsm       # 元Excelファイル（ground truth）
-  計算ロジック仕様書.md      # VBAロジック文書
-  capture/                  # UIスクリーンショット
+  yakuin-hoshu/             # 役員報酬シミュレーション関連資料
+    yen_yakuin1.89.xlsm     # 元Excelファイル（ground truth）
+    計算ロジック仕様書.md    # VBAロジック文書
+    capture/                # UIスクリーンショット
+  hojinnari/                # 法人なりシミュレーション関連資料
 ```
 
 ## 設計原則

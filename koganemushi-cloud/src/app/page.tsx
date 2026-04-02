@@ -47,14 +47,6 @@ export default function SimulationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
-      <header className="bg-white border-b px-6 py-3">
-        <h1 className="text-lg font-bold">
-          こがねむしクラウド - 役員報酬シミュレーション
-        </h1>
-        <p className="text-xs text-muted-foreground">円単位で入力してください</p>
-      </header>
-
       {/* タブナビゲーション */}
       <div className="bg-white border-b px-6 flex gap-0">
         {TAB_LABELS.map((tab) => (
