@@ -1,7 +1,10 @@
 import type {
   HojinnariInput,
   HojinnariRates,
+  FamilyMember,
+  FamilyMemberResult,
   IndividualResult,
+  PlanResult,
   CorporateResult,
   HojinnariResult,
 } from "@/types/hojinnari";
@@ -18,10 +21,6 @@ import {
 // 法人税計算 - ctax()
 // ============================================================
 
-/**
- * 法人税の計算（800万円境界の2段階税率）
- * 地方法人特別税を含む実効税率で計算
- */
 export function calcCorporateTaxHojinnari(
   income: number,
   rates: HojinnariRates
@@ -39,13 +38,9 @@ export function calcCorporateTaxHojinnari(
 }
 
 // ============================================================
-// 事業税計算 - biztax()
+// 事業税計算（法人） - biztax()
 // ============================================================
 
-/**
- * 法人事業税の計算（400万・800万境界の3段階税率）
- * 地方特別税を含む
- */
 export function calcBusinessTax(
   income: number,
   rates: HojinnariRates
@@ -70,12 +65,37 @@ export function calcBusinessTax(
 }
 
 // ============================================================
-// 社会保険料（法人役員）
+// 個人事業税（個人事業主側）
 // ============================================================
 
 /**
- * 役員給与に対する社会保険料（役員負担分）
- * calc-engine.ts の関数を HojinnariRates に適合させてラップ
+ * 個人事業税（概算）
+ * 所得 - 290万円 の5%（第三種事業）
+ * ※ 実際は業種によって異なる
+ */
+export function calcIndividualBusinessTax(income: number): number {
+  const deduction = 2900000;
+  if (income <= deduction) { return 0; }
+  return Math.floor((income - deduction) * 0.05);
+}
+
+// ============================================================
+// 社会保険料（法人役員・月額給与ベース）
+// ============================================================
+
+function toRateSettings(rates: HojinnariRates): RateSettings {
+  return {
+    healthInsuranceRate: rates.healthInsuranceRate,
+    nursingCareRate: rates.nursingCareRate,
+    pensionRate: rates.pensionRate,
+    childcareContributionRate: 0,
+    healthBonusAnnualCap: 5730000,
+    pensionBonusPerPaymentCap: 1500000,
+  };
+}
+
+/**
+ * 年間役員給与に対する社会保険料（役員負担分）
  */
 function calcOwnerSocialInsurance(
   annualSalary: number,
@@ -84,77 +104,290 @@ function calcOwnerSocialInsurance(
 ): number {
   if (annualSalary <= 0) { return 0; }
   const monthlySalary = annualSalary / 12;
-  // HojinnariRates を RateSettings 相当に変換して既存関数を再利用
-  const rateSettings: RateSettings = {
-    healthInsuranceRate: rates.healthInsuranceRate,
-    nursingCareRate: rates.nursingCareRate,
-    pensionRate: rates.pensionRate,
-    childcareContributionRate: 0,
-    healthBonusAnnualCap: 5730000,
-    pensionBonusPerPaymentCap: 1500000,
-  };
-  const healthMonthly = calcHealthInsuranceMonthly(monthlySalary, age, rateSettings);
-  const pensionMonthly = calcPensionInsuranceMonthly(monthlySalary, age, rateSettings);
+  const rs = toRateSettings(rates);
+  const healthMonthly = calcHealthInsuranceMonthly(monthlySalary, age, rs);
+  const pensionMonthly = calcPensionInsuranceMonthly(monthlySalary, age, rs);
   return Math.floor((healthMonthly + pensionMonthly) * 12);
 }
 
 // ============================================================
-// 個人事業主の計算
+// 家族構成員の税計算
 // ============================================================
 
-export function calcIndividual(
-  input: HojinnariInput,
-  rates: HojinnariRates
-): IndividualResult {
-  const { businessIncome, blueDeduction, spouseExpense, ownerAge } = input;
+export function calcFamilyMemberTax(
+  member: FamilyMember,
+  isChildcareHousehold: boolean
+): FamilyMemberResult {
+  const salaryAfterDeduction = calcSalaryIncome(member.salaryIncome, isChildcareHousehold);
+  const pensionIncome = member.pensionIncome;
+  const otherIncome = member.otherIncome;
 
-  // 事業所得 → 青色控除・専従者給与を差し引く
-  const adjustedIncome = Math.max(0, businessIncome - blueDeduction - spouseExpense);
-
-  // 基礎控除
-  const basicDeduction = calcBasicDeduction(adjustedIncome);
-
-  // 課税所得（国保・年金・その他控除を引く）
-  const totalDeductions =
-    basicDeduction +
-    input.ownerNationalInsurance +
-    input.ownerOtherDeductions;
-  const taxableIncome = Math.max(0, adjustedIncome - totalDeductions);
-
-  // 所得税（復興特別税込み）
+  const totalIncome = salaryAfterDeduction + pensionIncome + otherIncome;
+  const basicDeduction = calcBasicDeduction(totalIncome);
+  const totalDeductions = basicDeduction + member.socialInsurance + member.otherDeductions;
+  const taxableIncome = Math.max(0, totalIncome - totalDeductions);
   const incomeTax = Math.floor(calcIncomeTax(taxableIncome));
-
-  // 住民税（課税所得の約10%）
   const residentTax = Math.floor(taxableIncome * 0.1);
-
-  // 手取り
+  const taxTotal = incomeTax + residentTax;
   const netIncome =
-    businessIncome -
-    blueDeduction -
-    spouseExpense -
-    input.ownerNationalInsurance -
-    incomeTax -
-    residentTax;
-
-  void ownerAge; // 個人事業主では社会保険計算に使わない（入力値を使用）
+    member.salaryIncome + pensionIncome + otherIncome -
+    member.socialInsurance - incomeTax - residentTax;
 
   return {
-    businessIncome,
-    blueDeduction,
-    spouseExpense,
-    adjustedIncome,
+    salaryIncome: member.salaryIncome,
+    salaryAfterDeduction,
+    pensionIncome,
+    otherIncome,
+    totalIncome,
+    socialInsurance: member.socialInsurance,
+    otherDeductions: member.otherDeductions,
     basicDeduction,
-    otherDeductions: input.ownerOtherDeductions,
-    nationalInsurance: input.ownerNationalInsurance,
+    totalDeductions,
     taxableIncome,
     incomeTax,
     residentTax,
+    taxTotal,
     netIncome,
   };
 }
 
 // ============================================================
-// 法人の計算
+// 現状（個人事業主）計算
+// ============================================================
+
+export function calcIndividual(
+  input: HojinnariInput,
+): IndividualResult {
+  const { businessIncome, blueDeduction, ownerNationalInsurance, ownerOtherDeductions, isChildcareHousehold } = input;
+
+  // 事業所得 → 青色控除
+  const adjustedIncome = Math.max(0, businessIncome - blueDeduction);
+
+  // 所得金額（給与は現状なし）
+  const totalIncome = adjustedIncome;
+
+  // 基礎控除
+  const basicDeduction = calcBasicDeduction(totalIncome);
+  const totalDeductions = basicDeduction + ownerNationalInsurance + ownerOtherDeductions;
+  const taxableIncome = Math.max(0, totalIncome - totalDeductions);
+
+  // 所得税（復興特別税込み）
+  const incomeTax = Math.floor(calcIncomeTax(taxableIncome));
+
+  // 住民税
+  const residentTax = Math.floor(taxableIncome * 0.1);
+  const taxTotal = incomeTax + residentTax;
+
+  // 個人事業税
+  const individualBusinessTax = calcIndividualBusinessTax(adjustedIncome);
+
+  // 手取り
+  const netIncome =
+    businessIncome -
+    blueDeduction -
+    ownerNationalInsurance -
+    incomeTax -
+    residentTax -
+    individualBusinessTax;
+
+  // 家族計算
+  const family: ReturnType<typeof calcFamilyMemberTax>[] = [];
+  if (input.hasSpouse) {
+    family.push(calcFamilyMemberTax(input.spouse, isChildcareHousehold));
+  }
+  for (let i = 0; i < input.childCount; i++) {
+    family.push(calcFamilyMemberTax(input.children[i], isChildcareHousehold));
+  }
+
+  const familyNetIncome = family.reduce((sum, m) => sum + m.netIncome, 0);
+  const combinedNetIncome = netIncome + familyNetIncome;
+
+  return {
+    businessIncome,
+    blueDeduction,
+    adjustedIncome,
+    salaryAfterDeduction: 0,
+    totalIncome,
+    nationalInsurance: ownerNationalInsurance,
+    otherDeductions: ownerOtherDeductions,
+    basicDeduction,
+    totalDeductions,
+    taxableIncome,
+    incomeTax,
+    residentTax,
+    taxTotal,
+    individualBusinessTax,
+    netIncome,
+    family,
+    combinedNetIncome,
+  };
+}
+
+// ============================================================
+// 共通ヘルパー: 個人税計算
+// ============================================================
+
+interface IndivTaxInput {
+  totalIncome: number;
+  socialInsurance: number;
+  otherDeductions: number;
+}
+
+interface IndivTaxResult {
+  incomeTax: number;
+  residentTax: number;
+  taxTotal: number;
+}
+
+function calcIndivTax(p: IndivTaxInput): IndivTaxResult {
+  const basic = calcBasicDeduction(p.totalIncome);
+  const taxable = Math.max(0, p.totalIncome - basic - p.socialInsurance - p.otherDeductions);
+  const incomeTax = Math.floor(calcIncomeTax(taxable));
+  const residentTax = Math.floor(taxable * 0.1);
+  return { incomeTax, residentTax, taxTotal: incomeTax + residentTax };
+}
+
+interface CorpSideResult {
+  corporateIncome: number;
+  corporateTax: number;
+  corporateBusinessTax: number;
+  corporateRetained: number;
+}
+
+function calcCorpSide(
+  revenue: number,
+  salaries: number,
+  employerSI: number,
+  rates: HojinnariRates
+): CorpSideResult {
+  const corporateIncome = Math.max(0, revenue - salaries - employerSI);
+  const corporateTax = calcCorporateTaxHojinnari(corporateIncome, rates);
+  const corporateBusinessTax = calcBusinessTax(corporateIncome, rates);
+  const corporateRetained = Math.max(0, corporateIncome - corporateTax - corporateBusinessTax);
+  return { corporateIncome, corporateTax, corporateBusinessTax, corporateRetained };
+}
+
+// ============================================================
+// PLAN1: マイクロ法人成り
+// ============================================================
+
+export function calcPlan1(
+  input: HojinnariInput,
+  rates: HojinnariRates
+): PlanResult {
+  const {
+    businessIncome, blueDeduction, ownerAge, ownerOtherDeductions,
+    isChildcareHousehold, plan1MicroRevenue, plan1MicroSalary, plan1SpouseSalary,
+  } = input;
+
+  const remainingBusiness = Math.max(0, businessIncome - plan1MicroRevenue);
+  const adjustedIndividual = Math.max(0, remainingBusiness - blueDeduction);
+  const salaryAfterDeduction = calcSalaryIncome(plan1MicroSalary, isChildcareHousehold);
+  const individualTotalIncome = adjustedIndividual + salaryAfterDeduction;
+
+  const ownerSocialInsurance = calcOwnerSocialInsurance(plan1MicroSalary, ownerAge, rates);
+  const employerSocialInsurance = ownerSocialInsurance;
+
+  const tax = calcIndivTax({
+    totalIncome: individualTotalIncome,
+    socialInsurance: ownerSocialInsurance,
+    otherDeductions: ownerOtherDeductions,
+  });
+  const individualBusinessTax = calcIndividualBusinessTax(adjustedIndividual);
+
+  const ownerNetIncome =
+    adjustedIndividual + plan1MicroSalary -
+    ownerSocialInsurance - tax.incomeTax - tax.residentTax - individualBusinessTax;
+
+  const corp = calcCorpSide(
+    plan1MicroRevenue,
+    plan1MicroSalary + plan1SpouseSalary,
+    employerSocialInsurance,
+    rates
+  );
+
+  return {
+    individualBusinessIncome: remainingBusiness,
+    individualAdjustedIncome: adjustedIndividual,
+    individualSalaryIncome: plan1MicroSalary,
+    individualSalaryAfterDeduction: salaryAfterDeduction,
+    individualTotalIncome,
+    individualIncomeTax: tax.incomeTax,
+    individualResidentTax: tax.residentTax,
+    individualBusinessTax,
+    individualTaxTotal: tax.taxTotal,
+    ownerSocialInsurance,
+    employerSocialInsurance,
+    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance,
+    corporateSalary: plan1MicroSalary,
+    spouseSalary: plan1SpouseSalary,
+    corporateRevenue: plan1MicroRevenue,
+    ...corp,
+    ownerNetIncome,
+    corporateNetIncome: corp.corporateRetained,
+    combinedNetIncome: ownerNetIncome + corp.corporateRetained,
+  };
+}
+
+// ============================================================
+// PLAN2: 完全法人成り
+// ============================================================
+
+export function calcPlan2(
+  input: HojinnariInput,
+  rates: HojinnariRates
+): PlanResult {
+  const {
+    businessIncome, ownerAge, ownerOtherDeductions,
+    isChildcareHousehold, plan2Salary, plan2SpouseSalary,
+  } = input;
+
+  const salaryAfterDeduction = calcSalaryIncome(plan2Salary, isChildcareHousehold);
+  const individualTotalIncome = salaryAfterDeduction;
+
+  const ownerSocialInsurance = calcOwnerSocialInsurance(plan2Salary, ownerAge, rates);
+  const employerSocialInsurance = ownerSocialInsurance;
+
+  const tax = calcIndivTax({
+    totalIncome: individualTotalIncome,
+    socialInsurance: ownerSocialInsurance,
+    otherDeductions: ownerOtherDeductions,
+  });
+
+  const ownerNetIncome = plan2Salary - ownerSocialInsurance - tax.incomeTax - tax.residentTax;
+
+  const corp = calcCorpSide(
+    businessIncome,
+    plan2Salary + plan2SpouseSalary,
+    employerSocialInsurance,
+    rates
+  );
+
+  return {
+    individualBusinessIncome: 0,
+    individualAdjustedIncome: 0,
+    individualSalaryIncome: plan2Salary,
+    individualSalaryAfterDeduction: salaryAfterDeduction,
+    individualTotalIncome,
+    individualIncomeTax: tax.incomeTax,
+    individualResidentTax: tax.residentTax,
+    individualBusinessTax: 0,
+    individualTaxTotal: tax.taxTotal,
+    ownerSocialInsurance,
+    employerSocialInsurance,
+    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance,
+    corporateSalary: plan2Salary,
+    spouseSalary: plan2SpouseSalary,
+    corporateRevenue: businessIncome,
+    ...corp,
+    ownerNetIncome,
+    corporateNetIncome: corp.corporateRetained,
+    combinedNetIncome: ownerNetIncome + corp.corporateRetained,
+  };
+}
+
+// ============================================================
+// 旧互換用 calcCorporate (シンプルな法人計算)
 // ============================================================
 
 export function calcCorporate(
@@ -162,56 +395,24 @@ export function calcCorporate(
   rates: HojinnariRates
 ): CorporateResult {
   const {
-    businessIncome,
-    corporateSalary,
-    spouseSalary,
-    ownerAge,
-    isChildcareHousehold,
-    ownerOtherDeductions,
+    businessIncome, plan2Salary, plan2SpouseSalary, ownerAge,
+    isChildcareHousehold, ownerOtherDeductions,
   } = input;
-
-  // 法人所得 = 事業所得 - 役員給与 - 専従者給与
-  const totalSalaryPaid = corporateSalary + spouseSalary;
+  const totalSalaryPaid = plan2Salary + plan2SpouseSalary;
   const corporateIncome = Math.max(0, businessIncome - totalSalaryPaid);
-
-  // 法人税
   const corporateTax = calcCorporateTaxHojinnari(corporateIncome, rates);
-
-  // 事業税
   const businessTax = calcBusinessTax(corporateIncome, rates);
-
-  // 法人内部留保
   const corporateRetained = Math.max(0, corporateIncome - corporateTax - businessTax);
-
-  // 役員給与所得（給与所得控除後）
-  const ownerSalaryAfterDeduction = calcSalaryIncome(corporateSalary, isChildcareHousehold);
-
-  // 社会保険料（役員負担分）
-  const ownerSocialInsurance = calcOwnerSocialInsurance(corporateSalary, ownerAge, rates);
-
-  // 基礎控除
+  const ownerSalaryAfterDeduction = calcSalaryIncome(plan2Salary, isChildcareHousehold);
+  const ownerSocialInsurance = calcOwnerSocialInsurance(plan2Salary, ownerAge, rates);
   const ownerBasicDeduction = calcBasicDeduction(ownerSalaryAfterDeduction);
-
-  // 役員課税所得
   const ownerTaxableIncome = Math.max(
     0,
-    ownerSalaryAfterDeduction -
-      ownerBasicDeduction -
-      ownerSocialInsurance -
-      ownerOtherDeductions
+    ownerSalaryAfterDeduction - ownerBasicDeduction - ownerSocialInsurance - ownerOtherDeductions
   );
-
-  // 役員所得税（復興特別税込み）
   const ownerIncomeTax = Math.floor(calcIncomeTax(ownerTaxableIncome));
-
-  // 役員住民税
   const ownerResidentTax = Math.floor(ownerTaxableIncome * 0.1);
-
-  // 役員手取り
-  const ownerNetIncome =
-    corporateSalary - ownerSocialInsurance - ownerIncomeTax - ownerResidentTax;
-
-  // 手取り合計（役員手取り + 法人内部留保）
+  const ownerNetIncome = plan2Salary - ownerSocialInsurance - ownerIncomeTax - ownerResidentTax;
   const totalNetIncome = ownerNetIncome + corporateRetained;
 
   return {
@@ -219,7 +420,7 @@ export function calcCorporate(
     corporateTax,
     businessTax,
     corporateRetained,
-    ownerSalary: corporateSalary,
+    ownerSalary: plan2Salary,
     ownerSalaryAfterDeduction,
     ownerSocialInsurance,
     ownerBasicDeduction,
@@ -240,14 +441,17 @@ export function calcHojinnari(
   input: HojinnariInput,
   rates: HojinnariRates
 ): HojinnariResult {
-  const individual = calcIndividual(input, rates);
+  const individual = calcIndividual(input);
+  const plan1 = calcPlan1(input, rates);
+  const plan2 = calcPlan2(input, rates);
   const corporate = calcCorporate(input, rates);
-  const difference = corporate.totalNetIncome - individual.netIncome;
-  return { individual, corporate, difference };
+  const difference = plan2.combinedNetIncome - individual.netIncome;
+
+  return { individual, plan1, plan2, corporate, difference };
 }
 
 // ============================================================
-// 最適化: 役員給与を変えて手取りが最大になる点を探索
+// 最適化: PLAN2の役員給与を変えて手取りが最大になる点を探索
 // ============================================================
 
 export interface OptimizationPoint {
@@ -257,11 +461,7 @@ export interface OptimizationPoint {
   corporateRetained: number;
 }
 
-/**
- * 役員給与を0〜事業所得の範囲で変えて手取りを計算
- * step刻みで試算し、最適値のリストを返す
- */
-export function optimizeCorporateSalary(
+export function optimizePlan2Salary(
   input: HojinnariInput,
   rates: HojinnariRates,
   step = 1000000
@@ -270,27 +470,77 @@ export function optimizeCorporateSalary(
   const max = input.businessIncome;
 
   for (let salary = 0; salary <= max; salary += step) {
-    const modified = { ...input, corporateSalary: salary };
-    const corporate = calcCorporate(modified, rates);
+    const modified = { ...input, plan2Salary: salary };
+    const plan2 = calcPlan2(modified, rates);
     results.push({
       salary,
-      totalNetIncome: corporate.totalNetIncome,
-      ownerNetIncome: corporate.ownerNetIncome,
-      corporateRetained: corporate.corporateRetained,
+      totalNetIncome: plan2.combinedNetIncome,
+      ownerNetIncome: plan2.ownerNetIncome,
+      corporateRetained: plan2.corporateRetained,
     });
   }
   return results;
 }
 
-/** 最適な役員給与（手取り合計が最大になる値）を返す */
+export function findOptimalPlan2Salary(
+  input: HojinnariInput,
+  rates: HojinnariRates,
+  step = 1000000
+): number {
+  const points = optimizePlan2Salary(input, rates, step);
+  if (points.length === 0) { return 0; }
+  return points.reduce((best, p) =>
+    p.totalNetIncome > best.totalNetIncome ? p : best
+  ).salary;
+}
+
+// ============================================================
+// 最適化: PLAN1のマイクロ法人役員給与を変えて最適化
+// ============================================================
+
+export interface MicroOptPoint {
+  microRevenue: number;
+  microSalary: number;
+  combinedNetIncome: number;
+  ownerNetIncome: number;
+  corporateRetained: number;
+}
+
+export function optimizePlan1(
+  input: HojinnariInput,
+  rates: HojinnariRates,
+  step = 1000000
+): MicroOptPoint[] {
+  const results: MicroOptPoint[] = [];
+  const maxRevenue = input.businessIncome;
+
+  for (let microRevenue = 0; microRevenue <= maxRevenue; microRevenue += step) {
+    const modified = { ...input, plan1MicroRevenue: microRevenue };
+    const plan1 = calcPlan1(modified, rates);
+    results.push({
+      microRevenue,
+      microSalary: input.plan1MicroSalary,
+      combinedNetIncome: plan1.combinedNetIncome,
+      ownerNetIncome: plan1.ownerNetIncome,
+      corporateRetained: plan1.corporateRetained,
+    });
+  }
+  return results;
+}
+
+// 旧互換用エクスポート
+export { calcPlan2 as calcCorporateNew };
+export function optimizeCorporateSalary(
+  input: HojinnariInput,
+  rates: HojinnariRates,
+  step = 1000000
+): OptimizationPoint[] {
+  return optimizePlan2Salary(input, rates, step);
+}
 export function findOptimalSalary(
   input: HojinnariInput,
   rates: HojinnariRates,
   step = 1000000
 ): number {
-  const points = optimizeCorporateSalary(input, rates, step);
-  if (points.length === 0) { return 0; }
-  return points.reduce((best, p) =>
-    p.totalNetIncome > best.totalNetIncome ? p : best
-  ).salary;
+  return findOptimalPlan2Salary(input, rates, step);
 }

@@ -1,10 +1,39 @@
 "use client";
 
+import { useState } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
-import { calcHojinnari } from "@/lib/hojinnari-calc";
 import { formatYen, formatPercent, parsePercent } from "@/lib/format";
 import { Input } from "@/components/ui/input";
+
+function YenInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  let displayValue = "";
+  if (focused) {
+    displayValue = value === 0 ? "" : String(value);
+  } else {
+    displayValue = value === 0 ? "" : formatYen(value);
+  }
+  return (
+    <Input
+      className="w-full text-right text-sm h-8"
+      value={displayValue}
+      onChange={(e) => {
+        const str = e.target.value.replace(/[^\d]/g, "");
+        onChange(str === "" ? 0 : parseInt(str, 10));
+      }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      placeholder="0"
+    />
+  );
+}
 
 function PercentInput({
   value,
@@ -15,129 +44,176 @@ function PercentInput({
 }) {
   return (
     <Input
-      className="w-28 text-right"
+      className="w-28 text-right text-sm h-8"
       value={formatPercent(value)}
       onChange={(e) => onChange(parsePercent(e.target.value))}
     />
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: number }) {
+function InputRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <tr className="border-b last:border-0">
-      <td className="py-1.5 pr-4 text-sm text-gray-600">{label}</td>
-      <td className="py-1.5 text-right text-sm font-mono">{formatYen(value)}</td>
-    </tr>
+    <div className="grid grid-cols-2 gap-2 items-center">
+      <label className="text-sm text-gray-600">{label}</label>
+      <div>{children}</div>
+    </div>
   );
 }
 
 export function HoujinnariSheet() {
-  const { input, rates, setRates } = useHojinnariStore(
-    useShallow((s) => ({ input: s.input, rates: s.rates, setRates: s.setRates }))
+  const { input, rates, setInput, setRates } = useHojinnariStore(
+    useShallow((s) => ({
+      input: s.input,
+      rates: s.rates,
+      setInput: s.setInput,
+      setRates: s.setRates,
+    }))
   );
 
-  const { corporate } = calcHojinnari(input, rates);
-
   return (
-    <div className="p-4 space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 税率設定 */}
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="font-bold text-base border-b pb-2">法人税率・事業税率の設定</h2>
+    <div className="p-4 space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700">法人税</h3>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <label className="flex items-center text-gray-600">法人税率① （800万以下）</label>
-              <PercentInput
-                value={rates.corporateTaxRate1}
-                onChange={(v) => setRates({ corporateTaxRate1: v })}
-              />
-              <label className="flex items-center text-gray-600">法人税率② （800万超）</label>
-              <PercentInput
-                value={rates.corporateTaxRate2}
-                onChange={(v) => setRates({ corporateTaxRate2: v })}
-              />
-              <label className="flex items-center text-gray-600">地方法人特別税率</label>
-              <PercentInput
-                value={rates.localCorpTaxRate}
-                onChange={(v) => setRates({ localCorpTaxRate: v })}
-              />
-            </div>
+        {/* ---- 税率設定 ---- */}
+        <div className="bg-white rounded border p-4 space-y-3">
+          <h2 className="font-bold text-sm border-b pb-2">税率設定</h2>
 
-            <h3 className="text-sm font-semibold text-gray-700 pt-2">法人事業税</h3>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <label className="flex items-center text-gray-600">事業税率① （400万以下）</label>
-              <PercentInput
-                value={rates.businessTaxRate1}
-                onChange={(v) => setRates({ businessTaxRate1: v })}
-              />
-              <label className="flex items-center text-gray-600">事業税率② （400〜800万）</label>
-              <PercentInput
-                value={rates.businessTaxRate2}
-                onChange={(v) => setRates({ businessTaxRate2: v })}
-              />
-              <label className="flex items-center text-gray-600">事業税率③ （800万超）</label>
-              <PercentInput
-                value={rates.businessTaxRate3}
-                onChange={(v) => setRates({ businessTaxRate3: v })}
-              />
-              <label className="flex items-center text-gray-600">地方特別税率</label>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase">法人税</h3>
+          <div className="space-y-2">
+            <InputRow label="法人税率① (800万以下)">
+              <PercentInput value={rates.corporateTaxRate1} onChange={(v) => setRates({ corporateTaxRate1: v })} />
+            </InputRow>
+            <InputRow label="法人税率② (800万超)">
+              <PercentInput value={rates.corporateTaxRate2} onChange={(v) => setRates({ corporateTaxRate2: v })} />
+            </InputRow>
+            <InputRow label="地方法人特別税率">
+              <PercentInput value={rates.localCorpTaxRate} onChange={(v) => setRates({ localCorpTaxRate: v })} />
+            </InputRow>
+          </div>
+
+          <h3 className="text-xs font-semibold text-gray-500 uppercase pt-2">法人事業税</h3>
+          <div className="space-y-2">
+            <InputRow label="事業税率① (400万以下)">
+              <PercentInput value={rates.businessTaxRate1} onChange={(v) => setRates({ businessTaxRate1: v })} />
+            </InputRow>
+            <InputRow label="事業税率② (400〜800万)">
+              <PercentInput value={rates.businessTaxRate2} onChange={(v) => setRates({ businessTaxRate2: v })} />
+            </InputRow>
+            <InputRow label="事業税率③ (800万超)">
+              <PercentInput value={rates.businessTaxRate3} onChange={(v) => setRates({ businessTaxRate3: v })} />
+            </InputRow>
+            <InputRow label="地方特別税率">
               <PercentInput
                 value={rates.localBusinessTaxRate}
                 onChange={(v) => setRates({ localBusinessTaxRate: v })}
               />
-            </div>
+            </InputRow>
+          </div>
 
-            <h3 className="text-sm font-semibold text-gray-700 pt-2">社会保険料率（役員）</h3>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <label className="flex items-center text-gray-600">健康保険料率</label>
-              <PercentInput
-                value={rates.healthInsuranceRate}
-                onChange={(v) => setRates({ healthInsuranceRate: v })}
+          <h3 className="text-xs font-semibold text-gray-500 uppercase pt-2">社会保険料率（役員）</h3>
+          <div className="space-y-2">
+            <InputRow label="健康保険料率">
+              <PercentInput value={rates.healthInsuranceRate} onChange={(v) => setRates({ healthInsuranceRate: v })} />
+            </InputRow>
+            <InputRow label="介護保険料率">
+              <PercentInput value={rates.nursingCareRate} onChange={(v) => setRates({ nursingCareRate: v })} />
+            </InputRow>
+            <InputRow label="厚生年金保険料率">
+              <PercentInput value={rates.pensionRate} onChange={(v) => setRates({ pensionRate: v })} />
+            </InputRow>
+          </div>
+        </div>
+
+        {/* ---- PLAN1: マイクロ法人成り ---- */}
+        <div className="bg-white rounded border p-4 space-y-3">
+          <h2 className="font-bold text-sm border-b pb-2">
+            <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN1</span>
+            マイクロ法人成り
+          </h2>
+          <p className="text-xs text-gray-500">
+            個人事業の一部を別法人に移転し、残りは個人事業として継続するプラン
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">法人に移転する売上（年額）</label>
+              <YenInput
+                value={input.plan1MicroRevenue}
+                onChange={(v) => setInput({ plan1MicroRevenue: v })}
               />
-              <label className="flex items-center text-gray-600">介護保険料率</label>
-              <PercentInput
-                value={rates.nursingCareRate}
-                onChange={(v) => setRates({ nursingCareRate: v })}
+              {input.businessIncome > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  個人側残余: {formatYen(Math.max(0, input.businessIncome - input.plan1MicroRevenue))}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">マイクロ法人からの役員報酬（年額）</label>
+              <YenInput
+                value={input.plan1MicroSalary}
+                onChange={(v) => setInput({ plan1MicroSalary: v })}
               />
-              <label className="flex items-center text-gray-600">厚生年金保険料率</label>
-              <PercentInput
-                value={rates.pensionRate}
-                onChange={(v) => setRates({ pensionRate: v })}
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">配偶者への法人給与（年額）</label>
+              <YenInput
+                value={input.plan1SpouseSalary}
+                onChange={(v) => setInput({ plan1SpouseSalary: v })}
               />
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 rounded text-xs text-gray-600 space-y-1">
+            <p className="font-semibold text-blue-800">PLAN1 の概要</p>
+            <div className="grid grid-cols-2 gap-1">
+              <span>移転売上:</span>
+              <span className="text-right font-mono">{formatYen(input.plan1MicroRevenue)}</span>
+              <span>役員報酬:</span>
+              <span className="text-right font-mono">{formatYen(input.plan1MicroSalary)}</span>
+              <span>配偶者給与:</span>
+              <span className="text-right font-mono">{formatYen(input.plan1SpouseSalary)}</span>
             </div>
           </div>
         </div>
 
-        {/* 法人側詳細 */}
-        <div className="bg-white rounded-lg border p-4 space-y-4">
-          <h2 className="font-bold text-base border-b pb-2">法人側 計算詳細</h2>
-          <table className="w-full">
-            <tbody>
-              <DetailRow label="法人所得" value={corporate.corporateIncome} />
-              <DetailRow label="法人税" value={corporate.corporateTax} />
-              <DetailRow label="法人事業税" value={corporate.businessTax} />
-              <DetailRow label="法人内部留保" value={corporate.corporateRetained} />
-              <tr className="border-b">
-                <td className="py-1.5 text-xs text-gray-400 italic" colSpan={2}>役員</td>
-              </tr>
-              <DetailRow label="役員給与" value={corporate.ownerSalary} />
-              <DetailRow label="給与所得控除後" value={corporate.ownerSalaryAfterDeduction} />
-              <DetailRow label="社会保険料（役員負担）" value={corporate.ownerSocialInsurance} />
-              <DetailRow label="基礎控除" value={corporate.ownerBasicDeduction} />
-              <DetailRow label="課税所得" value={corporate.ownerTaxableIncome} />
-              <DetailRow label="所得税" value={corporate.ownerIncomeTax} />
-              <DetailRow label="住民税" value={corporate.ownerResidentTax} />
-              <DetailRow label="役員手取り" value={corporate.ownerNetIncome} />
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 font-bold">
-                <td className="py-2 text-sm">手取り合計（役員＋内部留保）</td>
-                <td className="py-2 text-right font-mono">{formatYen(corporate.totalNetIncome)}</td>
-              </tr>
-            </tfoot>
-          </table>
+        {/* ---- PLAN2: 完全法人成り ---- */}
+        <div className="bg-white rounded border p-4 space-y-3">
+          <h2 className="font-bold text-sm border-b pb-2">
+            <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN2</span>
+            完全法人成り
+          </h2>
+          <p className="text-xs text-gray-500">
+            全ての事業を法人化し、役員報酬として受け取るプラン
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">役員報酬（年額）</label>
+              <YenInput
+                value={input.plan2Salary}
+                onChange={(v) => setInput({ plan2Salary: v })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">配偶者への給与（年額）</label>
+              <YenInput
+                value={input.plan2SpouseSalary}
+                onChange={(v) => setInput({ plan2SpouseSalary: v })}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-orange-50 rounded text-xs text-gray-600 space-y-1">
+            <p className="font-semibold text-orange-800">PLAN2 の概要</p>
+            <div className="grid grid-cols-2 gap-1">
+              <span>法人売上（全額）:</span>
+              <span className="text-right font-mono">{formatYen(input.businessIncome)}</span>
+              <span>役員報酬:</span>
+              <span className="text-right font-mono">{formatYen(input.plan2Salary)}</span>
+              <span>配偶者給与:</span>
+              <span className="text-right font-mono">{formatYen(input.plan2SpouseSalary)}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

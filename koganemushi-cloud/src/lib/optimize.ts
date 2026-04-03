@@ -61,7 +61,8 @@ function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): num
   );
   const dividendTotal = exec.dividendIncome;
   const retainedEarnings =
-    ctx.corporateTaxParams.preTaxCorporateIncome - execPay - dividendTotal - result.employerSocialInsurance - corporateTax;
+    ctx.corporateTaxParams.preTaxCorporateIncome -
+    execPay - dividendTotal - result.employerSocialInsurance - corporateTax;
   return result.netIncome + retainedEarnings;
 }
 
