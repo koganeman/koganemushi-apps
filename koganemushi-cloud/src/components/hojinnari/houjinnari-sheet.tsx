@@ -42,11 +42,35 @@ function PercentInput({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const [focused, setFocused] = useState(false);
+  const [localText, setLocalText] = useState("");
+
+  const displayValue = focused
+    ? localText
+    : formatPercent(value) + "%";
+
   return (
     <Input
       className="w-28 text-right text-sm h-8"
-      value={formatPercent(value)}
-      onChange={(e) => onChange(parsePercent(e.target.value))}
+      value={displayValue}
+      onChange={(e) => {
+        const str = e.target.value.replace(/[^0-9.]/g, "");
+        setLocalText(str);
+        const num = parseFloat(str);
+        if (!isNaN(num)) {
+          onChange(num / 100);
+        }
+      }}
+      onFocus={() => {
+        setLocalText(value === 0 ? "" : (value * 100).toString());
+        setFocused(true);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const num = parseFloat(localText);
+        onChange(isNaN(num) ? 0 : num / 100);
+      }}
+      placeholder="0.00%"
     />
   );
 }
@@ -124,12 +148,46 @@ export function HoujinnariSheet() {
           </div>
         </div>
 
-        {/* ---- PLAN1: マイクロ法人成り ---- */}
+        {/* ---- 完全法人成り ---- */}
         <div className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-bold text-sm border-b pb-2">
-            <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN1</span>
-            マイクロ法人成り
-          </h2>
+          <h2 className="font-bold text-sm border-b pb-2">完全法人成り</h2>
+          <p className="text-xs text-gray-500">
+            全ての事業を法人化し、役員報酬として受け取るプラン
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">役員報酬（年額）</label>
+              <YenInput
+                value={input.plan2Salary}
+                onChange={(v) => setInput({ plan2Salary: v })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 block mb-1">配偶者への給与（年額）</label>
+              <YenInput
+                value={input.plan2SpouseSalary}
+                onChange={(v) => setInput({ plan2SpouseSalary: v })}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 rounded text-xs text-gray-600 space-y-1">
+            <p className="font-semibold text-blue-800">完全法人成りの概要</p>
+            <div className="grid grid-cols-2 gap-1">
+              <span>法人売上（全額）:</span>
+              <span className="text-right font-mono">{formatYen(input.businessIncome)}</span>
+              <span>役員報酬:</span>
+              <span className="text-right font-mono">{formatYen(input.plan2Salary)}</span>
+              <span>配偶者給与:</span>
+              <span className="text-right font-mono">{formatYen(input.plan2SpouseSalary)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ---- マイクロ法人成り ---- */}
+        <div className="bg-white rounded border p-4 space-y-3">
+          <h2 className="font-bold text-sm border-b pb-2">マイクロ法人成り</h2>
           <p className="text-xs text-gray-500">
             個人事業の一部を別法人に移転し、残りは個人事業として継続するプラン
           </p>
@@ -163,8 +221,8 @@ export function HoujinnariSheet() {
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-blue-50 rounded text-xs text-gray-600 space-y-1">
-            <p className="font-semibold text-blue-800">PLAN1 の概要</p>
+          <div className="mt-4 p-3 bg-orange-50 rounded text-xs text-gray-600 space-y-1">
+            <p className="font-semibold text-orange-800">マイクロ法人成りの概要</p>
             <div className="grid grid-cols-2 gap-1">
               <span>移転売上:</span>
               <span className="text-right font-mono">{formatYen(input.plan1MicroRevenue)}</span>
@@ -172,46 +230,6 @@ export function HoujinnariSheet() {
               <span className="text-right font-mono">{formatYen(input.plan1MicroSalary)}</span>
               <span>配偶者給与:</span>
               <span className="text-right font-mono">{formatYen(input.plan1SpouseSalary)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ---- PLAN2: 完全法人成り ---- */}
-        <div className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-bold text-sm border-b pb-2">
-            <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN2</span>
-            完全法人成り
-          </h2>
-          <p className="text-xs text-gray-500">
-            全ての事業を法人化し、役員報酬として受け取るプラン
-          </p>
-
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">役員報酬（年額）</label>
-              <YenInput
-                value={input.plan2Salary}
-                onChange={(v) => setInput({ plan2Salary: v })}
-              />
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">配偶者への給与（年額）</label>
-              <YenInput
-                value={input.plan2SpouseSalary}
-                onChange={(v) => setInput({ plan2SpouseSalary: v })}
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-orange-50 rounded text-xs text-gray-600 space-y-1">
-            <p className="font-semibold text-orange-800">PLAN2 の概要</p>
-            <div className="grid grid-cols-2 gap-1">
-              <span>法人売上（全額）:</span>
-              <span className="text-right font-mono">{formatYen(input.businessIncome)}</span>
-              <span>役員報酬:</span>
-              <span className="text-right font-mono">{formatYen(input.plan2Salary)}</span>
-              <span>配偶者給与:</span>
-              <span className="text-right font-mono">{formatYen(input.plan2SpouseSalary)}</span>
             </div>
           </div>
         </div>

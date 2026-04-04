@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import type { FamilyMemberResult } from "@/types/hojinnari";
 
 const ZERO_MEMBER: FamilyMemberResult = {
-  salaryIncome: 0, salaryAfterDeduction: 0, pensionIncome: 0, otherIncome: 0,
+  salaryIncome: 0, salaryAfterDeduction: 0, pensionIncome: 0, pensionAfterDeduction: 0, otherIncome: 0,
   totalIncome: 0, socialInsurance: 0, otherDeductions: 0, basicDeduction: 0,
   totalDeductions: 0, taxableIncome: 0, incomeTax: 0, residentTax: 0,
   taxTotal: 0, netIncome: 0,
@@ -199,6 +199,18 @@ export function SimulationSheet() {
         >
           <TableHead cols={cols} />
           <tbody>
+            <DataRow
+              label="年齢"
+              ownerValue={input.ownerAge}
+              spouseValue={sp.age}
+              child1Value={c0.age}
+              child2Value={c1.age}
+              cols={cols}
+              ownerOnChange={(v) => setInput({ ownerAge: v })}
+              spouseOnChange={(v) => setSpouse({ age: v })}
+              child1OnChange={(v) => setChild(0, { age: v })}
+              child2OnChange={(v) => setChild(1, { age: v })}
+            />
             <SectionRow label="▼ 収入" colCount={colCount} />
             <DataRow
               label="事業所得金額"
@@ -224,18 +236,19 @@ export function SimulationSheet() {
             />
             <DataRow
               label="給与収入"
-              ownerValue={0}
+              ownerValue={input.ownerSalaryIncome}
               spouseValue={sp.salaryIncome}
               child1Value={c0.salaryIncome}
               child2Value={c1.salaryIncome}
               cols={cols}
+              ownerOnChange={(v) => setInput({ ownerSalaryIncome: v })}
               spouseOnChange={(v) => setSpouse({ salaryIncome: v })}
               child1OnChange={(v) => setChild(0, { salaryIncome: v })}
               child2OnChange={(v) => setChild(1, { salaryIncome: v })}
             />
             <DataRow
               label="給与所得金額"
-              ownerValue={0}
+              ownerValue={ownerResult.salaryAfterDeduction}
               spouseValue={sr.salaryAfterDeduction}
               child1Value={cr1.salaryAfterDeduction}
               child2Value={cr2.salaryAfterDeduction}
@@ -243,22 +256,32 @@ export function SimulationSheet() {
             />
             <DataRow
               label="年金収入"
-              ownerValue={0}
+              ownerValue={input.ownerPensionIncome}
               spouseValue={sp.pensionIncome}
               child1Value={c0.pensionIncome}
               child2Value={c1.pensionIncome}
               cols={cols}
+              ownerOnChange={(v) => setInput({ ownerPensionIncome: v })}
               spouseOnChange={(v) => setSpouse({ pensionIncome: v })}
               child1OnChange={(v) => setChild(0, { pensionIncome: v })}
               child2OnChange={(v) => setChild(1, { pensionIncome: v })}
             />
             <DataRow
+              label="年金雑所得"
+              ownerValue={ownerResult.pensionAfterDeduction}
+              spouseValue={sr.pensionAfterDeduction}
+              child1Value={cr1.pensionAfterDeduction}
+              child2Value={cr2.pensionAfterDeduction}
+              cols={cols}
+            />
+            <DataRow
               label="他の所得金額"
-              ownerValue={0}
+              ownerValue={input.ownerOtherIncome}
               spouseValue={sp.otherIncome}
               child1Value={c0.otherIncome}
               child2Value={c1.otherIncome}
               cols={cols}
+              ownerOnChange={(v) => setInput({ ownerOtherIncome: v })}
               spouseOnChange={(v) => setSpouse({ otherIncome: v })}
               child1OnChange={(v) => setChild(0, { otherIncome: v })}
               child2OnChange={(v) => setChild(1, { otherIncome: v })}

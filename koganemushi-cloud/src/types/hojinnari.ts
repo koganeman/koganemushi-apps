@@ -4,6 +4,7 @@
 
 /** 家族構成員（配偶者・子供）の入力 */
 export interface FamilyMember {
+  age: number;             // 年齢
   salaryIncome: number;    // 給与収入
   pensionIncome: number;   // 年金収入
   otherIncome: number;     // その他所得
@@ -16,6 +17,7 @@ export interface FamilyMemberResult {
   salaryIncome: number;
   salaryAfterDeduction: number; // 給与所得控除後
   pensionIncome: number;
+  pensionAfterDeduction: number;  // 年金雑所得（公的年金等控除後）
   otherIncome: number;
   totalIncome: number;          // 所得金額
   socialInsurance: number;
@@ -36,6 +38,9 @@ export interface HojinnariInput {
   blueDeduction: number;            // 青色申告特別控除
   ownerAge: number;                 // 代表者年齢
   ownerNationalInsurance: number;   // 国保 + 国民年金（年額）
+  ownerSalaryIncome: number;        // 給与収入
+  ownerPensionIncome: number;       // 年金収入
+  ownerOtherIncome: number;         // 他の所得金額
   ownerOtherDeductions: number;     // その他所得控除（生保控除等）
   isChildcareHousehold: boolean;    // 子育て・介護世帯
 
@@ -78,7 +83,8 @@ export interface IndividualResult {
   businessIncome: number;
   blueDeduction: number;
   adjustedIncome: number;
-  salaryAfterDeduction: number;  // 給与所得控除後（現状は0）
+  salaryAfterDeduction: number;  // 給与所得控除後
+  pensionAfterDeduction: number; // 年金雑所得（公的年金等控除後）
   totalIncome: number;
   nationalInsurance: number;
   otherDeductions: number;

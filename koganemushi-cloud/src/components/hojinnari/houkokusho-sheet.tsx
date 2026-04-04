@@ -13,372 +13,364 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer,
   ReferenceLine,
+  ResponsiveContainer,
+  Cell,
 } from "recharts";
 
-type DiffStyle = "favorable" | "unfavorable" | "neutral";
-
-function diffStyle(v: number): DiffStyle {
-  if (v > 0) { return "favorable"; }
-  if (v < 0) { return "unfavorable"; }
-  return "neutral";
-}
-
-function cellClass(style: DiffStyle): string {
-  if (style === "favorable") { return "py-1 px-2 text-right text-xs font-mono border-r text-blue-700 font-bold"; }
-  if (style === "unfavorable") { return "py-1 px-2 text-right text-xs font-mono border-r text-red-600 font-bold"; }
-  return "py-1 px-2 text-right text-xs font-mono border-r text-gray-400";
-}
-
-function DiffCell({ value }: { value: number }) {
-  const style = diffStyle(value);
-  return (
-    <td className={cellClass(style)}>
-      <span>
-        {value > 0 ? "+" : ""}
-        {formatYen(value)}
-      </span>
-      {style === "favorable" && (
-        <span className="ml-1 text-[10px] text-blue-500">▲有利</span>
-      )}
-      {style === "unfavorable" && (
-        <span className="ml-1 text-[10px] text-red-400">▼不利</span>
-      )}
-    </td>
-  );
-}
-
-function ReportRow({
-  label,
-  currentValue,
-  afterValue,
-  isBold = false,
-  isSection = false,
-  note,
-}: {
-  label: string;
-  currentValue: number;
-  afterValue: number;
-  isBold?: boolean;
-  isSection?: boolean;
-  note?: string;
-}) {
-  if (isSection) {
-    return (
-      <tr>
-        <td
-          colSpan={4}
-          className="py-1 px-2 text-xs font-bold text-white bg-gray-500"
-        >
-          {label}
-        </td>
-      </tr>
-    );
+/** 差引の有利/不利ラベル */
+function diffLabel(value: number, type: "burden" | "income"): string {
+  if (value === 0) return "";
+  if (type === "burden") {
+    return value > 0 ? "不利/負担増" : "有利/負担減";
   }
-  const diff = afterValue - currentValue;
-  return (
-    <tr className={`border-b ${isBold ? "bg-gray-50 font-bold" : ""}`}>
-      <td className="py-1 px-2 text-xs text-gray-700 border-r whitespace-nowrap">
-        {label}
-        {note && <span className="text-gray-400 ml-1 text-[10px]">{note}</span>}
-      </td>
-      <td className="py-1 px-2 text-right text-xs font-mono border-r">{formatYen(currentValue)}</td>
-      <td className="py-1 px-2 text-right text-xs font-mono border-r">{formatYen(afterValue)}</td>
-      <DiffCell value={diff} />
-    </tr>
-  );
+  return value > 0 ? "有利/手取り増" : "不利/手取り減";
+}
+
+function fmtOrEmpty(value: number): string {
+  if (value === 0) return "";
+  return formatYen(value);
+}
+
+function fmtDiff(value: number): string {
+  if (value === 0) return "";
+  return formatYen(value);
 }
 
 function PlanTable({
   title,
-  planColor,
-  currentNetIncome,
+  individual,
   planResult,
 }: {
   title: string;
-  planColor: "blue" | "orange";
-  currentNetIncome: number;
+  individual: ReturnType<typeof calcIndividual>;
   planResult: ReturnType<typeof calcPlan1>;
 }) {
-  const colorClass = planColor === "blue" ? "bg-blue-600" : "bg-orange-500";
+  // 現状
+  const curBusinessIncome = individual.businessIncome;
+  const curSalaryIncome = 0; // 個人事業主は給与収入なし（法人からの給与はない）
+  const curCorporateTax = 0;
+  const curPersonalTax = individual.taxTotal; // 所得税+住民税
+  const curBusinessTax = individual.individualBusinessTax;
+  const curTaxTotal = curCorporateTax + curPersonalTax + curBusinessTax;
+  const curSocialIndividual = individual.nationalInsurance;
+  const curSocialEmployer = 0;
+  const curSocialTotal = curSocialIndividual + curSocialEmployer;
+  const curBurden = curTaxTotal + curSocialTotal;
+  const curCombinedNet = individual.netIncome;
+  const curPersonalNet = individual.netIncome;
+  const curCorporateNet = 0;
 
-  const afterSocialIndividual = planResult.ownerSocialInsurance;
-  const afterSocialEmployer = planResult.employerSocialInsurance;
+  // 法人成り後
+  const aftBusinessIncome = planResult.individualBusinessIncome;
+  const aftCorporateIncome = planResult.corporateIncome;
+  const aftSalaryIncome = planResult.corporateSalary;
+  const aftCorporateTax = planResult.corporateTax + planResult.corporateBusinessTax;
+  const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
+  const aftBusinessTax = planResult.individualBusinessTax;
+  const aftTaxTotal = aftCorporateTax + aftPersonalTax + aftBusinessTax;
+  const aftSocialIndividual = planResult.ownerSocialInsurance;
+  const aftSocialEmployer = planResult.employerSocialInsurance;
+  const aftSocialTotal = planResult.totalSocialInsurance;
+  const aftBurden = aftTaxTotal + aftSocialTotal;
+  const aftCombinedNet = planResult.combinedNetIncome;
+  const aftPersonalNet = planResult.ownerNetIncome;
+  const aftCorporateNet = planResult.corporateRetained;
+
+  const thCls = "py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400";
+  const thLabelCls = `${thCls} text-left`;
+  const tdLabel = "py-1 px-2 text-[11px] text-gray-700 border border-gray-300 whitespace-nowrap";
+  const tdVal = "py-1 px-2 text-right text-[11px] font-mono border border-gray-300";
+  const tdBoldLabel = "py-1 px-2 text-[11px] font-bold text-gray-900 border border-gray-300 whitespace-nowrap";
+  const tdBoldVal = "py-1 px-2 text-right text-[11px] font-mono font-bold border border-gray-300";
+
+  function DiffTd({ value, type }: { value: number; type: "burden" | "income" }) {
+    const label = diffLabel(value, type);
+    const color = type === "burden"
+      ? (value > 0 ? "text-red-600" : value < 0 ? "text-blue-700" : "")
+      : (value < 0 ? "text-red-600" : value > 0 ? "text-blue-700" : "");
+    return (
+      <td className={`${tdBoldVal} ${color}`}>
+        {fmtDiff(value)}
+        {label && <span className="ml-1 text-[9px]">{label}</span>}
+      </td>
+    );
+  }
 
   return (
-    <div className="flex-1 min-w-0">
-      <div className={`${colorClass} text-white text-xs font-bold px-3 py-1.5 rounded-t`}>
-        {title}
-      </div>
-      <table className="w-full border-collapse text-xs border border-t-0">
+    <div>
+      <table className="w-full border-collapse text-[11px]">
         <thead>
-          <tr className="bg-gray-100 border-b">
-            <th className="py-1 px-2 text-left text-xs font-medium text-gray-500 border-r w-32">項目</th>
-            <th className="py-1 px-2 text-right text-xs font-medium text-gray-500 border-r">現状</th>
-            <th className="py-1 px-2 text-right text-xs font-medium text-gray-500 border-r">法人成り後</th>
-            <th className="py-1 px-2 text-right text-xs font-medium text-gray-500">差引</th>
+          <tr>
+            <th className={thLabelCls} style={{ width: "140px" }}></th>
+            <th className={thCls}>現状</th>
+            <th className={thCls}>法人成り後</th>
+            <th className={thCls}>差引</th>
           </tr>
         </thead>
         <tbody>
-          <ReportRow label="▼ 売上・所得" currentValue={0} afterValue={0} isSection />
-          <ReportRow
-            label="事業所得金額"
-            currentValue={planResult.individualBusinessIncome}
-            afterValue={planResult.individualBusinessIncome}
-          />
-          <ReportRow
-            label="法人売上（移転分）"
-            currentValue={0}
-            afterValue={planResult.corporateRevenue}
-          />
-          <ReportRow
-            label="法人所得金額"
-            currentValue={0}
-            afterValue={planResult.corporateIncome}
-          />
+          {/* 所得 */}
+          <tr>
+            <td className={tdLabel}>事業所得金額</td>
+            <td className={tdVal}>{fmtOrEmpty(curBusinessIncome)}</td>
+            <td className={tdVal}>{fmtOrEmpty(aftBusinessIncome)}</td>
+            <td className={tdVal}></td>
+          </tr>
+          <tr>
+            <td className={tdLabel}>法人所得金額</td>
+            <td className={tdVal}></td>
+            <td className={tdVal}>{fmtOrEmpty(aftCorporateIncome)}</td>
+            <td className={tdVal}></td>
+          </tr>
+          <tr>
+            <td className={tdLabel}>給与収入金額</td>
+            <td className={tdVal}>{fmtOrEmpty(curSalaryIncome)}</td>
+            <td className={tdVal}>{fmtOrEmpty(aftSalaryIncome)}</td>
+            <td className={tdVal}></td>
+          </tr>
 
-          <ReportRow label="▼ 税金" currentValue={0} afterValue={0} isSection />
-          <ReportRow
-            label="法人税"
-            currentValue={0}
-            afterValue={planResult.corporateTax}
-          />
-          <ReportRow
-            label="法人事業税"
-            currentValue={0}
-            afterValue={planResult.corporateBusinessTax}
-          />
-          <ReportRow
-            label="個人所得税"
-            currentValue={0}
-            afterValue={planResult.individualIncomeTax}
-          />
-          <ReportRow
-            label="個人住民税"
-            currentValue={0}
-            afterValue={planResult.individualResidentTax}
-          />
-          <ReportRow
-            label="個人事業税"
-            currentValue={0}
-            afterValue={planResult.individualBusinessTax}
-          />
+          {/* 空行 */}
+          <tr><td colSpan={4} className="border border-gray-300 h-2"></td></tr>
 
-          <ReportRow label="▼ 社会保険" currentValue={0} afterValue={0} isSection />
-          <ReportRow
-            label="社会保険料（個人負担）"
-            currentValue={0}
-            afterValue={afterSocialIndividual}
-          />
-          <ReportRow
-            label="社会保険料（法人負担）"
-            currentValue={0}
-            afterValue={afterSocialEmployer}
-            note="※法事業者分含"
-          />
-          <ReportRow
-            label="社会保険料計"
-            currentValue={0}
-            afterValue={planResult.totalSocialInsurance}
-            isBold
-          />
+          {/* 税金 */}
+          <tr>
+            <td className={tdLabel}>法人税等</td>
+            <td className={tdVal}></td>
+            <td className={tdVal}>{fmtOrEmpty(aftCorporateTax)}</td>
+            <td className={tdVal}>{fmtDiff(aftCorporateTax - curCorporateTax)}</td>
+          </tr>
+          <tr>
+            <td className={tdLabel}>個人所得税等</td>
+            <td className={tdVal}>{fmtOrEmpty(curPersonalTax)}</td>
+            <td className={tdVal}>{fmtOrEmpty(aftPersonalTax)}</td>
+            <td className={tdVal}>{fmtDiff(aftPersonalTax - curPersonalTax)}</td>
+          </tr>
+          <tr>
+            <td className={tdLabel}>事業税</td>
+            <td className={tdVal}>{fmtOrEmpty(curBusinessTax)}</td>
+            <td className={tdVal}>{fmtOrEmpty(aftBusinessTax)}</td>
+            <td className={tdVal}>{fmtDiff(aftBusinessTax - curBusinessTax)}</td>
+          </tr>
 
-          <ReportRow label="▼ 手取り" currentValue={0} afterValue={0} isSection />
-          <ReportRow
-            label="合算CF手取り額"
-            currentValue={currentNetIncome}
-            afterValue={planResult.combinedNetIncome}
-            isBold
-          />
-          <ReportRow
-            label="役員手取り額"
-            currentValue={currentNetIncome}
-            afterValue={planResult.ownerNetIncome}
-          />
-          <ReportRow
-            label="法人手取り額（内部留保）"
-            currentValue={0}
-            afterValue={planResult.corporateRetained}
-          />
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 bg-gray-50">
-            <td className="py-2 px-2 text-xs font-bold" colSpan={4}>
-              合計手取り増減額:
-              <span
-                className={`ml-2 text-base font-bold ${
-                  planResult.combinedNetIncome - currentNetIncome >= 0
-                    ? "text-blue-700"
-                    : "text-red-600"
-                }`}
-              >
-                {planResult.combinedNetIncome - currentNetIncome >= 0 ? "+" : ""}
-                {formatYen(planResult.combinedNetIncome - currentNetIncome)}
-              </span>
+          {/* 空行 */}
+          <tr><td colSpan={4} className="border border-gray-300 h-2"></td></tr>
+
+          {/* 税金合計 */}
+          <tr className="bg-gray-50">
+            <td className={tdBoldLabel}>税金</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(curTaxTotal)}</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftTaxTotal)}</td>
+            <td className={tdBoldVal}>{fmtDiff(aftTaxTotal - curTaxTotal)}</td>
+          </tr>
+
+          {/* 空行 */}
+          <tr><td colSpan={4} className="border border-gray-300 h-2"></td></tr>
+
+          {/* 社会保険 */}
+          <tr>
+            <td className={tdLabel}>社会保険料個人負担</td>
+            <td className={tdVal}>{fmtOrEmpty(curSocialIndividual)}</td>
+            <td className={tdVal}>{fmtOrEmpty(aftSocialIndividual)}</td>
+            <td className={tdVal}>{fmtDiff(aftSocialIndividual - curSocialIndividual)}</td>
+          </tr>
+          <tr>
+            <td className={tdLabel}>社会保険料法人負担</td>
+            <td className={tdVal}></td>
+            <td className={tdVal}>{fmtOrEmpty(aftSocialEmployer)}</td>
+            <td className={tdVal}>
+              {fmtDiff(aftSocialEmployer)}
+              {aftSocialEmployer > 0 && <span className="ml-1 text-[9px] text-gray-500">※従業員分含む</span>}
             </td>
           </tr>
-        </tfoot>
+
+          {/* 空行 */}
+          <tr><td colSpan={4} className="border border-gray-300 h-2"></td></tr>
+
+          {/* 社会保険合計 */}
+          <tr className="bg-gray-50">
+            <td className={tdBoldLabel}>社会保険料</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(curSocialTotal)}</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftSocialTotal)}</td>
+            <td className={tdBoldVal}>{fmtDiff(aftSocialTotal - curSocialTotal)}</td>
+          </tr>
+
+          {/* 空行 */}
+          <tr><td colSpan={4} className="border border-gray-300 h-2"></td></tr>
+
+          {/* 税金・社会保険料負担 */}
+          <tr className="bg-gray-100">
+            <td className={tdBoldLabel}>税金・社会保険料負担</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(curBurden)}</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftBurden)}</td>
+            <DiffTd value={aftBurden - curBurden} type="burden" />
+          </tr>
+          {/* 合算手取り額 */}
+          <tr className="bg-gray-100">
+            <td className={tdBoldLabel}>合算手取り額</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(curCombinedNet)}</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftCombinedNet)}</td>
+            <DiffTd value={aftCombinedNet - curCombinedNet} type="income" />
+          </tr>
+          {/* 個人手取り額 */}
+          <tr className="bg-blue-50">
+            <td className={tdBoldLabel}>個人手取り額</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(curPersonalNet)}</td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftPersonalNet)}</td>
+            <DiffTd value={aftPersonalNet - curPersonalNet} type="income" />
+          </tr>
+          {/* 法人手取り額 */}
+          <tr>
+            <td className={tdBoldLabel}>法人手取り額</td>
+            <td className={tdVal}></td>
+            <td className={tdBoldVal}>{fmtOrEmpty(aftCorporateNet)}</td>
+            <DiffTd value={aftCorporateNet - curCorporateNet} type="income" />
+          </tr>
+        </tbody>
       </table>
     </div>
   );
 }
 
+function IncreaseChart({
+  label,
+  individual,
+  planResult,
+}: {
+  label: string;
+  individual: ReturnType<typeof calcIndividual>;
+  planResult: ReturnType<typeof calcPlan1>;
+}) {
+  const curNet = individual.netIncome;
+  const combinedDiff = planResult.combinedNetIncome - curNet;
+  const corporateDiff = planResult.corporateRetained;
+  const personalDiff = planResult.ownerNetIncome - curNet;
+
+  const data = [
+    { name: "合算手取り額", value: combinedDiff },
+    { name: "法人手取り額", value: corporateDiff },
+    { name: "個人手取り額", value: personalDiff },
+  ];
+
+  const COLORS = ["#4472C4", "#ED7D31", "#A5A5A5"];
+
+  return (
+    <div className="border border-gray-300 bg-white p-3">
+      <h4 className="text-xs font-bold text-center text-red-700 mb-2">
+        法人成後手取り増減額（{label}）
+      </h4>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 5, right: 10, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" tick={{ fontSize: 9 }} />
+          <YAxis
+            tickFormatter={(v: number) => v.toLocaleString()}
+            tick={{ fontSize: 9 }}
+          />
+          <Tooltip formatter={(value) => (typeof value === "number" ? formatYen(value) : String(value))} />
+          <Legend wrapperStyle={{ fontSize: 10 }} />
+          <ReferenceLine y={0} stroke="#666" />
+          <Bar dataKey="value" name="増減額">
+            {data.map((_, idx) => (
+              <Cell key={idx} fill={COLORS[idx]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function PlanBlock({
+  title,
+  individual,
+  plan1Result,
+  plan2Result,
+}: {
+  title: string;
+  individual: ReturnType<typeof calcIndividual>;
+  plan1Result: ReturnType<typeof calcPlan1>;
+  plan2Result: ReturnType<typeof calcPlan2>;
+}) {
+  return (
+    <div className="flex-1 min-w-[420px]">
+      <div className="bg-yellow-50 border border-yellow-400 px-3 py-1 mb-2 text-sm font-bold">
+        {title}
+      </div>
+      <div className="space-y-4">
+        <div>
+          <div className="text-xs font-bold text-gray-600 mb-1 pl-1">完全法人成り：</div>
+          <PlanTable title="" individual={individual} planResult={plan2Result} />
+          <div className="mt-2">
+            <IncreaseChart label="完全法人成り" individual={individual} planResult={plan2Result} />
+          </div>
+        </div>
+        <div>
+          <div className="text-xs font-bold text-gray-600 mb-1 pl-1">マイクロ法人成り：</div>
+          <PlanTable title="" individual={individual} planResult={plan1Result} />
+          <div className="mt-2">
+            <IncreaseChart label="マイクロ法人成り" individual={individual} planResult={plan1Result} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HoukokushoSheet() {
-  const { input, rates, savePlan1AsPlan2 } = useHojinnariStore(
+  const { input, rates, reportPlan2Input, reportPlan2Rates, copyReportPlan1ToPlan2 } = useHojinnariStore(
     useShallow((s) => ({
       input: s.input,
       rates: s.rates,
-      savePlan1AsPlan2: s.savePlan1AsPlan2,
+      reportPlan2Input: s.reportPlan2Input,
+      reportPlan2Rates: s.reportPlan2Rates,
+      copyReportPlan1ToPlan2: s.copyReportPlan1ToPlan2,
     }))
   );
 
-  const individual = calcIndividual(input);
-  const plan1Result = calcPlan1(input, rates);
-  const plan2Result = calcPlan2(input, rates);
+  // プラン1: 現在の入力値から計算
+  const individual1 = calcIndividual(input);
+  const plan1Micro = calcPlan1(input, rates);
+  const plan1Full = calcPlan2(input, rates);
 
-  const currentNetIncome = individual.netIncome;
-  const p1Increase = plan1Result.combinedNetIncome - currentNetIncome;
-  const p2Increase = plan2Result.combinedNetIncome - currentNetIncome;
-  const p1vsp2 = p1Increase - p2Increase;
-
-  // グラフデータ
-  const chartData = [
-    {
-      name: "現状",
-      合算手取り: currentNetIncome,
-      役員手取り: currentNetIncome,
-      法人手取り: 0,
-    },
-    {
-      name: "PLAN1",
-      合算手取り: plan1Result.combinedNetIncome,
-      役員手取り: plan1Result.ownerNetIncome,
-      法人手取り: plan1Result.corporateRetained,
-    },
-    {
-      name: "PLAN2",
-      合算手取り: plan2Result.combinedNetIncome,
-      役員手取り: plan2Result.ownerNetIncome,
-      法人手取り: plan2Result.corporateRetained,
-    },
-  ];
-
-  const increaseData = [
-    {
-      name: "PLAN1\n増減額",
-      増減額: p1Increase,
-    },
-    {
-      name: "PLAN2\n増減額",
-      増減額: p2Increase,
-    },
-  ];
+  // プラン2: スナップショットから計算（なければプラン1と同じ）
+  const p2Input = reportPlan2Input ?? input;
+  const p2Rates = reportPlan2Rates ?? rates;
+  const individual2 = calcIndividual(p2Input);
+  const plan2Micro = calcPlan1(p2Input, p2Rates);
+  const plan2Full = calcPlan2(p2Input, p2Rates);
 
   return (
     <div className="p-4 space-y-4">
-      {/* ヘッダー操作 */}
+      {/* ヘッダー */}
       <div className="flex items-center gap-4 bg-white rounded border p-3">
-        <h2 className="font-bold text-sm">法人なりシミュレーション 報告書</h2>
+        <h2 className="font-bold text-sm">法人成りシミュレーション</h2>
         <Button
           size="sm"
           variant="outline"
-          onClick={savePlan1AsPlan2}
+          onClick={copyReportPlan1ToPlan2}
           className="text-xs"
         >
-          PLAN1をPLAN2に転記して保存
+          プラン1をプラン2に転記
         </Button>
-        <span className="text-xs text-gray-400">
-          事業所得: {formatYen(input.businessIncome)}
-        </span>
+        <div className="text-xs text-gray-600 border border-gray-300 rounded px-2 py-1">
+          ● 円単位
+        </div>
       </div>
 
-      {/* PLAN1 / PLAN2 並列表示 */}
-      <div className="flex gap-4 flex-wrap xl:flex-nowrap">
-        <PlanTable
-          title={`PLAN1: マイクロ法人成り（移転 ${formatYen(input.plan1MicroRevenue)}・役員報酬 ${formatYen(input.plan1MicroSalary)}）`}
-          planColor="blue"
-          currentNetIncome={currentNetIncome}
-          planResult={plan1Result}
+      {/* プラン1（左） / プラン2（右） */}
+      <div className="flex gap-6 flex-wrap">
+        <PlanBlock
+          title="プラン1"
+          individual={individual1}
+          plan1Result={plan1Micro}
+          plan2Result={plan1Full}
         />
-        <PlanTable
-          title={`PLAN2: 完全法人成り（役員報酬 ${formatYen(input.plan2Salary)}）`}
-          planColor="orange"
-          currentNetIncome={currentNetIncome}
-          planResult={plan2Result}
+        <PlanBlock
+          title="プラン2"
+          individual={individual2}
+          plan1Result={plan2Micro}
+          plan2Result={plan2Full}
         />
-      </div>
-
-      {/* サマリー */}
-      <div className="bg-white rounded border p-4">
-        <h3 className="font-bold text-sm mb-3">合計手取り増減額の比較</h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div className="p-3 border rounded">
-            <p className="text-xs text-gray-500">PLAN1 増減額</p>
-            <p className={`text-xl font-bold ${p1Increase >= 0 ? "text-blue-700" : "text-red-600"}`}>
-              {p1Increase >= 0 ? "+" : ""}{formatYen(p1Increase)}
-            </p>
-          </div>
-          <div className="p-3 border rounded">
-            <p className="text-xs text-gray-500">PLAN2 増減額</p>
-            <p className={`text-xl font-bold ${p2Increase >= 0 ? "text-orange-600" : "text-red-600"}`}>
-              {p2Increase >= 0 ? "+" : ""}{formatYen(p2Increase)}
-            </p>
-          </div>
-          <div className="p-3 border rounded bg-gray-50">
-            <p className="text-xs text-gray-500">P1-P2 差額</p>
-            <p className={`text-xl font-bold ${p1vsp2 >= 0 ? "text-blue-700" : "text-orange-600"}`}>
-              {p1vsp2 >= 0 ? "+" : ""}{formatYen(p1vsp2)}
-            </p>
-            <p className="text-xs text-gray-400">
-              {p1vsp2 >= 0 ? "PLAN1が有利" : "PLAN2が有利"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* グラフ */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-white rounded border p-4">
-          <h3 className="font-bold text-sm mb-3">手取り額の比較</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis
-                tickFormatter={(v: number) => `${(v / 10000).toFixed(0)}万`}
-                tick={{ fontSize: 10 }}
-              />
-              <Tooltip formatter={(value) => (typeof value === "number" ? formatYen(value) : String(value))} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="合算手取り" fill="#3b82f6" name="合算手取り額" />
-              <Bar dataKey="役員手取り" fill="#f97316" name="役員手取り額" />
-              <Bar dataKey="法人手取り" fill="#6b7280" name="法人手取り額" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded border p-4">
-          <h3 className="font-bold text-sm mb-3">法人成後手取り増減額</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={increaseData} margin={{ top: 10, right: 10, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis
-                tickFormatter={(v: number) => `${(v / 10000).toFixed(0)}万`}
-                tick={{ fontSize: 10 }}
-              />
-              <Tooltip formatter={(value) => (typeof value === "number" ? formatYen(value) : String(value))} />
-              <ReferenceLine y={0} stroke="#666" />
-              <Bar
-                dataKey="増減額"
-                fill="#3b82f6"
-                name="手取り増減額"
-                label={{ position: "top", formatter: (v: unknown) => `${(Number(v) / 10000).toFixed(0)}万`, fontSize: 10 }}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
     </div>
   );

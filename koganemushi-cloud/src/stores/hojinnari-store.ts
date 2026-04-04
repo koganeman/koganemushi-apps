@@ -5,6 +5,7 @@ import type { HojinnariInput, HojinnariRates, FamilyMember } from "@/types/hojin
 export type HojinnariTab = "simulation" | "houjinnari" | "houkokusho" | "saitekika";
 
 const EMPTY_FAMILY_MEMBER: FamilyMember = {
+  age: 0,
   salaryIncome: 0,
   pensionIncome: 0,
   otherIncome: 0,
@@ -31,6 +32,9 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
   blueDeduction: 650000,
   ownerAge: 45,
   ownerNationalInsurance: 0,
+  ownerSalaryIncome: 0,
+  ownerPensionIncome: 0,
+  ownerOtherIncome: 0,
   ownerOtherDeductions: 0,
   isChildcareHousehold: false,
 
@@ -54,12 +58,15 @@ interface HojinnariState {
   input: HojinnariInput;
   rates: HojinnariRates;
   activeTab: HojinnariTab;
+  reportPlan2Input: HojinnariInput | null;
+  reportPlan2Rates: HojinnariRates | null;
   setInput: (partial: Partial<HojinnariInput>) => void;
   setSpouse: (partial: Partial<FamilyMember>) => void;
   setChild: (index: 0 | 1, partial: Partial<FamilyMember>) => void;
   setRates: (partial: Partial<HojinnariRates>) => void;
   setActiveTab: (tab: HojinnariTab) => void;
   savePlan1AsPlan2: () => void;
+  copyReportPlan1ToPlan2: () => void;
 }
 
 export const useHojinnariStore = create<HojinnariState>()(
@@ -68,6 +75,8 @@ export const useHojinnariStore = create<HojinnariState>()(
       input: { ...DEFAULT_HOJINNARI_INPUT },
       rates: { ...DEFAULT_HOJINNARI_RATES },
       activeTab: "simulation",
+      reportPlan2Input: null,
+      reportPlan2Rates: null,
 
       setInput: (partial) =>
         set((state) => ({ input: { ...state.input, ...partial } })),
@@ -92,7 +101,7 @@ export const useHojinnariStore = create<HojinnariState>()(
 
       setActiveTab: (activeTab) => set({ activeTab }),
 
-      // PLAN1の設定値をPLAN2に転記（転記後はPLAN2タブで使用可能）
+      // 法人なりシートの設定値を転記
       savePlan1AsPlan2: () =>
         set((state) => ({
           input: {
@@ -101,12 +110,21 @@ export const useHojinnariStore = create<HojinnariState>()(
             plan2SpouseSalary: state.input.plan1SpouseSalary,
           },
         })),
+
+      // 報告書: プラン1の現在の入力値・料率をプラン2にスナップショット保存
+      copyReportPlan1ToPlan2: () =>
+        set((state) => ({
+          reportPlan2Input: { ...state.input },
+          reportPlan2Rates: { ...state.rates },
+        })),
     }),
     {
       name: "koganemushi-hojinnari-v2",
       partialize: (state) => ({
         input: state.input,
         rates: state.rates,
+        reportPlan2Input: state.reportPlan2Input,
+        reportPlan2Rates: state.reportPlan2Rates,
       }),
     }
   )
