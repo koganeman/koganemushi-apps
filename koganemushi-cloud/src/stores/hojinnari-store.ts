@@ -152,7 +152,7 @@ export const useHojinnariStore = create<HojinnariState>()(
         })),
     }),
     {
-      name: "koganemushi-hojinnari-v3",
+      name: "koganemushi-hojinnari-v4",
       partialize: (state) => ({
         input: state.input,
         rates: state.rates,

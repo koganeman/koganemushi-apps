@@ -2,6 +2,7 @@
 
 import { useHojinnariStore, type HojinnariTab } from "@/stores/hojinnari-store";
 import { SimulationSheet } from "@/components/hojinnari/simulation-sheet";
+import { DecisionMeasuresTable } from "@/components/hojinnari/decision-measures-table";
 import { HoujinnariSheet } from "@/components/hojinnari/houjinnari-sheet";
 import { HoukokushoSheet } from "@/components/hojinnari/houkokusho-sheet";
 import { OptimizationSheet } from "@/components/hojinnari/optimization-sheet";
@@ -38,6 +39,11 @@ export default function HojinnariPage() {
 
       <main className="max-w-[1400px] mx-auto">
         {activeTab === "simulation" && <SimulationSheet />}
+        {activeTab === "simulation" && (
+          <div className="px-4 pb-4">
+            <DecisionMeasuresTable />
+          </div>
+        )}
         {activeTab === "houjinnari" && <HoujinnariSheet />}
         {activeTab === "houkokusho" && <HoukokushoSheet />}
         {activeTab === "saitekika" && <OptimizationSheet />}
