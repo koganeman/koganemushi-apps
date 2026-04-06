@@ -75,14 +75,12 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
 
   // 従業員
   employeeSalary: 0,
-
-  // 決算対策
-  decisionMeasures: DEFAULT_DECISION_MEASURES.map((m) => ({ ...m })),
 };
 
 interface HojinnariState {
   input: HojinnariInput;
   rates: HojinnariRates;
+  decisionMeasures: DecisionMeasure[];
   activeTab: HojinnariTab;
   reportPlan2Input: HojinnariInput | null;
   reportPlan2Rates: HojinnariRates | null;
@@ -101,6 +99,7 @@ export const useHojinnariStore = create<HojinnariState>()(
     (set) => ({
       input: { ...DEFAULT_HOJINNARI_INPUT },
       rates: { ...DEFAULT_HOJINNARI_RATES },
+      decisionMeasures: DEFAULT_DECISION_MEASURES.map((m) => ({ ...m })),
       activeTab: "simulation",
       reportPlan2Input: null,
       reportPlan2Rates: null,
@@ -128,9 +127,9 @@ export const useHojinnariStore = create<HojinnariState>()(
 
       setDecisionMeasure: (index, partial) =>
         set((state) => {
-          const measures = [...state.input.decisionMeasures] as DecisionMeasure[];
+          const measures = [...state.decisionMeasures] as DecisionMeasure[];
           measures[index] = { ...measures[index], ...partial };
-          return { input: { ...state.input, decisionMeasures: measures } };
+          return { decisionMeasures: measures };
         }),
 
       setActiveTab: (activeTab) => set({ activeTab }),
@@ -157,6 +156,7 @@ export const useHojinnariStore = create<HojinnariState>()(
       partialize: (state) => ({
         input: state.input,
         rates: state.rates,
+        decisionMeasures: state.decisionMeasures,
         reportPlan2Input: state.reportPlan2Input,
         reportPlan2Rates: state.reportPlan2Rates,
       }),

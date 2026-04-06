@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
-import { formatYen, formatPercent, parsePercent, parseYen } from "@/lib/format";
+import { formatYen, formatPercent, parsePercent } from "@/lib/format";
 import { calcSocialInsuranceIncome } from "@/lib/hojinnari-calc";
 import { Input } from "@/components/ui/input";
 

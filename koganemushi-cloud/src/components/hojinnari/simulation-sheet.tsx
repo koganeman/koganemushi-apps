@@ -161,14 +161,12 @@ function DecisionMeasureYenInput({
   );
 }
 
-function DecisionMeasuresTable({
-  measures,
-  onMeasureChange,
-}: {
-  measures: DecisionMeasure[];
-  onMeasureChange: (index: number, partial: Partial<DecisionMeasure>) => void;
-}) {
-  const totals = measures.reduce(
+function DecisionMeasuresTable() {
+  const { decisionMeasures: measures, setDecisionMeasure: onMeasureChange } = useHojinnariStore(
+    useShallow((s) => ({ decisionMeasures: s.decisionMeasures, setDecisionMeasure: s.setDecisionMeasure }))
+  );
+
+  const totals = (measures ?? []).reduce(
     (acc, m) => ({
       corporateExpense: acc.corporateExpense + m.corporateExpense,
       taxDeductible: acc.taxDeductible + m.taxDeductible,
@@ -198,7 +196,7 @@ function DecisionMeasuresTable({
             </tr>
           </thead>
           <tbody>
-            {measures.map((m, i) => (
+            {(measures ?? []).map((m, i) => (
               <tr key={i} className={i < 4 ? "bg-yellow-50" : ""}>
                 <td className={tdCls}>
                   <Input
@@ -251,13 +249,12 @@ function DecisionMeasuresTable({
 // ---- メインコンポーネント ----
 
 export function SimulationSheet() {
-  const { input, setInput, setSpouse, setChild, setDecisionMeasure } = useHojinnariStore(
+  const { input, setInput, setSpouse, setChild } = useHojinnariStore(
     useShallow((s) => ({
       input: s.input,
       setInput: s.setInput,
       setSpouse: s.setSpouse,
       setChild: s.setChild,
-      setDecisionMeasure: s.setDecisionMeasure,
     }))
   );
 
@@ -537,10 +534,7 @@ export function SimulationSheet() {
         </table>
       </div>
 
-      <DecisionMeasuresTable
-        measures={input.decisionMeasures}
-        onMeasureChange={setDecisionMeasure}
-      />
+      <DecisionMeasuresTable />
     </div>
   );
 }

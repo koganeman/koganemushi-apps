@@ -76,8 +76,6 @@ export interface HojinnariInput {
   // 従業員
   employeeSalary: number;  // 年間従業員給料額
 
-  // 決算対策
-  decisionMeasures: DecisionMeasure[];
 }
 
 /** 料率・税率設定 */

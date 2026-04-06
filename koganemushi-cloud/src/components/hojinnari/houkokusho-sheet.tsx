@@ -317,10 +317,11 @@ function PlanBlock({
 }
 
 export function HoukokushoSheet() {
-  const { input, rates, reportPlan2Input, reportPlan2Rates, copyReportPlan1ToPlan2 } = useHojinnariStore(
+  const { input, rates, decisionMeasures, reportPlan2Input, reportPlan2Rates, copyReportPlan1ToPlan2 } = useHojinnariStore(
     useShallow((s) => ({
       input: s.input,
       rates: s.rates,
+      decisionMeasures: s.decisionMeasures,
       reportPlan2Input: s.reportPlan2Input,
       reportPlan2Rates: s.reportPlan2Rates,
       copyReportPlan1ToPlan2: s.copyReportPlan1ToPlan2,
@@ -328,7 +329,7 @@ export function HoukokushoSheet() {
   );
 
   // 決算対策の合計
-  const decisionTotals = input.decisionMeasures.reduce(
+  const decisionTotals = (decisionMeasures ?? []).reduce(
     (acc, m) => ({
       corporateExpense: acc.corporateExpense + m.corporateExpense,
       taxDeductible: acc.taxDeductible + m.taxDeductible,
@@ -401,7 +402,7 @@ export function HoukokushoSheet() {
                 </tr>
               </thead>
               <tbody>
-                {input.decisionMeasures
+                {(decisionMeasures ?? [])
                   .filter((m) => m.name || m.corporateExpense > 0)
                   .map((m, i) => (
                     <tr key={i} className="border-b">
