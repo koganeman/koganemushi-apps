@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { HojinnariInput, HojinnariRates, FamilyMember } from "@/types/hojinnari";
+import type { HojinnariInput, HojinnariRates, FamilyMember, DecisionMeasure } from "@/types/hojinnari";
 
 export type HojinnariTab = "simulation" | "houjinnari" | "houkokusho" | "saitekika";
 
@@ -13,6 +13,17 @@ const EMPTY_FAMILY_MEMBER: FamilyMember = {
   otherDeductions: 0,
 };
 
+const DEFAULT_DECISION_MEASURES: DecisionMeasure[] = [
+  { name: "出張旅費手当", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "社宅家賃", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "セーフティ共済", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "経営者保険", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+  { name: "", corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 },
+];
+
 export const DEFAULT_HOJINNARI_RATES: HojinnariRates = {
   healthInsuranceRate: 0.0991,
   nursingCareRate: 0.0159,
@@ -24,6 +35,10 @@ export const DEFAULT_HOJINNARI_RATES: HojinnariRates = {
   businessTaxRate2: 0.085,
   businessTaxRate3: 0.1,
   localBusinessTaxRate: 0.375,
+  medicalBusinessTaxRate1: 0.035,
+  medicalBusinessTaxRate2: 0.049,
+  medicalBusinessTaxRate3: 0.07,
+  employeeInsuranceRate: 0.153,
 };
 
 export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
@@ -52,6 +67,17 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
   // PLAN2: 完全法人成り
   plan2Salary: 0,
   plan2SpouseSalary: 0,
+
+  // 医療法人
+  isMedicalCorporation: false,
+  socialInsuranceMedicalRevenue: 0,
+  totalRevenue: 0,
+
+  // 従業員
+  employeeSalary: 0,
+
+  // 決算対策
+  decisionMeasures: DEFAULT_DECISION_MEASURES.map((m) => ({ ...m })),
 };
 
 interface HojinnariState {
@@ -64,6 +90,7 @@ interface HojinnariState {
   setSpouse: (partial: Partial<FamilyMember>) => void;
   setChild: (index: 0 | 1, partial: Partial<FamilyMember>) => void;
   setRates: (partial: Partial<HojinnariRates>) => void;
+  setDecisionMeasure: (index: number, partial: Partial<DecisionMeasure>) => void;
   setActiveTab: (tab: HojinnariTab) => void;
   savePlan1AsPlan2: () => void;
   copyReportPlan1ToPlan2: () => void;
@@ -99,6 +126,13 @@ export const useHojinnariStore = create<HojinnariState>()(
       setRates: (partial) =>
         set((state) => ({ rates: { ...state.rates, ...partial } })),
 
+      setDecisionMeasure: (index, partial) =>
+        set((state) => {
+          const measures = [...state.input.decisionMeasures] as DecisionMeasure[];
+          measures[index] = { ...measures[index], ...partial };
+          return { input: { ...state.input, decisionMeasures: measures } };
+        }),
+
       setActiveTab: (activeTab) => set({ activeTab }),
 
       // 法人なりシートの設定値を転記
@@ -119,7 +153,7 @@ export const useHojinnariStore = create<HojinnariState>()(
         })),
     }),
     {
-      name: "koganemushi-hojinnari-v2",
+      name: "koganemushi-hojinnari-v3",
       partialize: (state) => ({
         input: state.input,
         rates: state.rates,

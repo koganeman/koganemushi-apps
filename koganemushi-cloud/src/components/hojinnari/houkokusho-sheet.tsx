@@ -327,6 +327,18 @@ export function HoukokushoSheet() {
     }))
   );
 
+  // 決算対策の合計
+  const decisionTotals = input.decisionMeasures.reduce(
+    (acc, m) => ({
+      corporateExpense: acc.corporateExpense + m.corporateExpense,
+      taxDeductible: acc.taxDeductible + m.taxDeductible,
+      personalIncomeIncrease: acc.personalIncomeIncrease + m.personalIncomeIncrease,
+      hiddenAssetIncrease: acc.hiddenAssetIncrease + m.hiddenAssetIncrease,
+    }),
+    { corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 }
+  );
+  const hasDecisionMeasures = decisionTotals.corporateExpense > 0 || decisionTotals.personalIncomeIncrease > 0 || decisionTotals.hiddenAssetIncrease > 0;
+
   // プラン1: 現在の入力値から計算
   const individual1 = calcIndividual(input);
   const plan1Micro = calcPlan1(input, rates);
@@ -372,6 +384,46 @@ export function HoukokushoSheet() {
           plan2Result={plan2Full}
         />
       </div>
+
+      {/* 決算対策の効果 */}
+      {hasDecisionMeasures && (
+        <div className="bg-white rounded border p-4 space-y-3">
+          <h3 className="font-bold text-sm border-b pb-2">法人成り後の決算対策の効果</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full max-w-xl border-collapse text-[11px]">
+              <thead>
+                <tr>
+                  <th className="py-1.5 px-2 text-left text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400 w-36">項目</th>
+                  <th className="py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400">法人支出額</th>
+                  <th className="py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400">損金算入額</th>
+                  <th className="py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400">個人手取り増加</th>
+                  <th className="py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400">法人の簿外資産</th>
+                </tr>
+              </thead>
+              <tbody>
+                {input.decisionMeasures
+                  .filter((m) => m.name || m.corporateExpense > 0)
+                  .map((m, i) => (
+                    <tr key={i} className="border-b">
+                      <td className="py-1 px-2 text-[11px] border border-gray-300">{m.name || "—"}</td>
+                      <td className="py-1 px-2 text-right text-[11px] font-mono border border-gray-300">{m.corporateExpense > 0 ? formatYen(m.corporateExpense) : ""}</td>
+                      <td className="py-1 px-2 text-right text-[11px] font-mono border border-gray-300">{m.taxDeductible > 0 ? formatYen(m.taxDeductible) : ""}</td>
+                      <td className="py-1 px-2 text-right text-[11px] font-mono border border-gray-300 text-blue-700">{m.personalIncomeIncrease > 0 ? formatYen(m.personalIncomeIncrease) : ""}</td>
+                      <td className="py-1 px-2 text-right text-[11px] font-mono border border-gray-300">{m.hiddenAssetIncrease > 0 ? formatYen(m.hiddenAssetIncrease) : ""}</td>
+                    </tr>
+                  ))}
+                <tr className="bg-gray-100">
+                  <td className="py-1 px-2 text-[11px] font-bold border border-gray-300">合計</td>
+                  <td className="py-1 px-2 text-right text-[11px] font-mono font-bold border border-gray-300">{decisionTotals.corporateExpense > 0 ? formatYen(decisionTotals.corporateExpense) : ""}</td>
+                  <td className="py-1 px-2 text-right text-[11px] font-mono font-bold border border-gray-300">{decisionTotals.taxDeductible > 0 ? formatYen(decisionTotals.taxDeductible) : ""}</td>
+                  <td className="py-1 px-2 text-right text-[11px] font-mono font-bold border border-gray-300 text-blue-700">{decisionTotals.personalIncomeIncrease > 0 ? formatYen(decisionTotals.personalIncomeIncrease) : ""}</td>
+                  <td className="py-1 px-2 text-right text-[11px] font-mono font-bold border border-gray-300">{decisionTotals.hiddenAssetIncrease > 0 ? formatYen(decisionTotals.hiddenAssetIncrease) : ""}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

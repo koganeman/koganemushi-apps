@@ -41,26 +41,52 @@ export function calcCorporateTaxHojinnari(
 // 事業税計算（法人） - biztax()
 // ============================================================
 
+/**
+ * 社会保険分の所得金額（医療法人）
+ * 法人所得 × (社会保険分医業収入 / 総収入金額)
+ */
+export function calcSocialInsuranceIncome(
+  corporateIncome: number,
+  socialInsuranceMedicalRevenue: number,
+  totalRevenue: number
+): number {
+  if (totalRevenue <= 0 || socialInsuranceMedicalRevenue <= 0) return 0;
+  const ratio = Math.min(1, socialInsuranceMedicalRevenue / totalRevenue);
+  return Math.floor(corporateIncome * ratio);
+}
+
 export function calcBusinessTax(
   income: number,
-  rates: HojinnariRates
+  rates: HojinnariRates,
+  isMedicalCorporation = false,
+  socialInsuranceIncome = 0
 ): number {
   if (income <= 0) { return 0; }
+
+  // 医療法人: 社会保険分の所得を課税対象から除外し、低い税率を適用
+  const taxableIncome = isMedicalCorporation
+    ? Math.max(0, income - socialInsuranceIncome)
+    : income;
+
+  const r1 = isMedicalCorporation ? rates.medicalBusinessTaxRate1 : rates.businessTaxRate1;
+  const r2 = isMedicalCorporation ? rates.medicalBusinessTaxRate2 : rates.businessTaxRate2;
+  const r3 = isMedicalCorporation ? rates.medicalBusinessTaxRate3 : rates.businessTaxRate3;
+
   const cht = rates.localBusinessTaxRate + 1;
-  const b1 = rates.businessTaxRate1 * cht;
-  const b2 = rates.businessTaxRate2 * cht;
-  const b3 = rates.businessTaxRate3 * cht;
+  const b1 = r1 * cht;
+  const b2 = r2 * cht;
+  const b3 = r3 * cht;
   const boundary1 = 4000000;
   const boundary2 = 8000000;
 
-  if (income <= boundary1) {
-    return Math.floor(income * b1);
+  if (taxableIncome <= boundary1) {
+    return Math.floor(taxableIncome * b1);
   }
-  if (income <= boundary2) {
-    return Math.floor(income * b2 - boundary1 * (b2 - b1));
+  if (taxableIncome <= boundary2) {
+    return Math.floor(taxableIncome * b2 - boundary1 * (b2 - b1));
   }
   return Math.floor(
-    income * b3 - boundary1 * (b3 - b2) - boundary1 * (b3 - b1)
+    taxableIncome * b3 - boundary1 * (b3 - b2) - boundary1 * (b3 - b1)
   );
 }
 
@@ -315,21 +341,39 @@ interface CorpSideResult {
   corporateTax: number;
   corporateBusinessTax: number;
   corporateRetained: number;
+  employeeEmployerSI: number;
+  medicalSocialInsuranceIncome: number;
 }
 
 function calcCorpSide(
   revenue: number,
   salaries: number,
-  employerSI: number,
-  rates: HojinnariRates
+  ownerEmployerSI: number,
+  rates: HojinnariRates,
+  input: HojinnariInput
 ): CorpSideResult {
-  const corporateIncomeRaw = Math.max(0, revenue - salaries - employerSI);
+  // 従業員会社負担社会保険料
+  const employeeEmployerSI = Math.floor(input.employeeSalary * rates.employeeInsuranceRate);
+  const totalEmployerSI = ownerEmployerSI + employeeEmployerSI;
+
+  const corporateIncomeRaw = Math.max(0, revenue - salaries - totalEmployerSI);
   // 法人所得は1,000円未満切り捨て
   const corporateIncome = Math.floor(corporateIncomeRaw / 1000) * 1000;
+
+  // 医療法人: 社会保険分の所得金額を計算
+  const medicalSocialInsuranceIncome = input.isMedicalCorporation
+    ? calcSocialInsuranceIncome(corporateIncome, input.socialInsuranceMedicalRevenue, input.totalRevenue)
+    : 0;
+
   const corporateTax = calcCorporateTaxHojinnari(corporateIncome, rates);
-  const corporateBusinessTax = calcBusinessTax(corporateIncome, rates);
+  const corporateBusinessTax = calcBusinessTax(
+    corporateIncome,
+    rates,
+    input.isMedicalCorporation,
+    medicalSocialInsuranceIncome
+  );
   const corporateRetained = Math.max(0, corporateIncomeRaw - corporateTax - corporateBusinessTax);
-  return { corporateIncome, corporateTax, corporateBusinessTax, corporateRetained };
+  return { corporateIncome, corporateTax, corporateBusinessTax, corporateRetained, employeeEmployerSI, medicalSocialInsuranceIncome };
 }
 
 // ============================================================
@@ -371,7 +415,8 @@ export function calcPlan1(
     plan1MicroRevenue,
     plan1MicroSalary + plan1SpouseSalary,
     employerSocialInsurance,
-    rates
+    rates,
+    input
   );
 
   return {
@@ -386,11 +431,13 @@ export function calcPlan1(
     individualTaxTotal: tax.taxTotal,
     ownerSocialInsurance,
     employerSocialInsurance,
-    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance,
+    employeeEmployerSocialInsurance: corp.employeeEmployerSI,
+    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance + corp.employeeEmployerSI,
     corporateSalary: plan1MicroSalary,
     spouseSalary: plan1SpouseSalary,
     corporateRevenue: plan1MicroRevenue,
     ...corp,
+    medicalSocialInsuranceIncome: corp.medicalSocialInsuranceIncome,
     ownerNetIncome,
     corporateNetIncome: corp.corporateRetained,
     combinedNetIncome: ownerNetIncome + corp.corporateRetained,
@@ -432,7 +479,8 @@ export function calcPlan2(
     businessIncome,
     plan2Salary + plan2SpouseSalary,
     employerSocialInsurance,
-    rates
+    rates,
+    input
   );
 
   return {
@@ -447,11 +495,13 @@ export function calcPlan2(
     individualTaxTotal: tax.taxTotal,
     ownerSocialInsurance,
     employerSocialInsurance,
-    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance,
+    employeeEmployerSocialInsurance: corp.employeeEmployerSI,
+    totalSocialInsurance: ownerSocialInsurance + employerSocialInsurance + corp.employeeEmployerSI,
     corporateSalary: plan2Salary,
     spouseSalary: plan2SpouseSalary,
     corporateRevenue: businessIncome,
     ...corp,
+    medicalSocialInsuranceIncome: corp.medicalSocialInsuranceIncome,
     ownerNetIncome,
     corporateNetIncome: corp.corporateRetained,
     combinedNetIncome: ownerNetIncome + corp.corporateRetained,

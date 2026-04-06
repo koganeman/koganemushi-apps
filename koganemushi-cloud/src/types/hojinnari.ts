@@ -2,6 +2,15 @@
 // 法人なりシミュレーション 型定義
 // ============================================================
 
+/** 法人成り後の決算対策 */
+export interface DecisionMeasure {
+  name: string;                    // 項目名
+  corporateExpense: number;        // 法人支出額
+  taxDeductible: number;           // 損金算入額
+  personalIncomeIncrease: number;  // 個人手取り増加
+  hiddenAssetIncrease: number;     // 法人の簿外資産
+}
+
 /** 家族構成員（配偶者・子供）の入力 */
 export interface FamilyMember {
   age: number;             // 年齢
@@ -58,6 +67,17 @@ export interface HojinnariInput {
   // PLAN2: 完全法人成り
   plan2Salary: number;          // 役員報酬（年額）
   plan2SpouseSalary: number;    // 配偶者への給与
+
+  // 医療法人
+  isMedicalCorporation: boolean;          // 医療法人フラグ
+  socialInsuranceMedicalRevenue: number;  // 社会保険分医業収入
+  totalRevenue: number;                   // 総収入金額
+
+  // 従業員
+  employeeSalary: number;  // 年間従業員給料額
+
+  // 決算対策
+  decisionMeasures: DecisionMeasure[];
 }
 
 /** 料率・税率設定 */
@@ -70,11 +90,17 @@ export interface HojinnariRates {
   corporateTaxRate1: number;       // 法人税率① 800万以下（例: 0.15）
   corporateTaxRate2: number;       // 法人税率② 800万超（例: 0.23）
   localCorpTaxRate: number;        // 地方法人特別税率（例: 0.104）
-  // 事業税
+  // 事業税（一般）
   businessTaxRate1: number;        // 事業税率① 400万以下（例: 0.07）
   businessTaxRate2: number;        // 事業税率② 400〜800万（例: 0.085）
   businessTaxRate3: number;        // 事業税率③ 800万超（例: 0.10）
   localBusinessTaxRate: number;    // 事業税 地方特別税率（例: 0.375）
+  // 事業税（医療法人）
+  medicalBusinessTaxRate1: number; // 医療法人事業税率① 400万以下（例: 0.035）
+  medicalBusinessTaxRate2: number; // 医療法人事業税率② 400〜800万（例: 0.049）
+  medicalBusinessTaxRate3: number; // 医療法人事業税率③ 800万超（例: 0.07）
+  // 従業員社会保険
+  employeeInsuranceRate: number;   // 従業員会社負担保険料率（例: 0.153）
 }
 
 /** 現状（個人事業主）の計算結果 */
@@ -115,7 +141,8 @@ export interface PlanResult {
   individualTaxTotal: number;          // 個人税金合計
   // 社会保険
   ownerSocialInsurance: number;        // 役員負担分（協会けんぽ）
-  employerSocialInsurance: number;     // 会社負担分
+  employerSocialInsurance: number;     // 会社負担分（役員分）
+  employeeEmployerSocialInsurance: number; // 会社負担分（従業員分）
   totalSocialInsurance: number;        // 社保計
   // 法人側
   corporateSalary: number;             // 役員報酬（法人が支払う）
@@ -125,6 +152,7 @@ export interface PlanResult {
   corporateTax: number;                // 法人税
   corporateBusinessTax: number;        // 法人事業税
   corporateRetained: number;           // 法人内部留保（法人手取り）
+  medicalSocialInsuranceIncome: number; // 社会保険分の所得金額（医療法人）
   // 手取り
   ownerNetIncome: number;              // 役員手取り
   corporateNetIncome: number;          // 法人手取り（内部留保）
