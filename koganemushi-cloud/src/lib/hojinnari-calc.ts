@@ -8,14 +8,15 @@ import type {
   CorporateResult,
   HojinnariResult,
 } from "@/types/hojinnari";
-import type { RateSettings } from "@/types/simulation";
 import {
   calcIncomeTax,
   calcBasicDeduction,
   calcSalaryIncome,
-  calcHealthInsuranceMonthly,
-  calcPensionInsuranceMonthly,
 } from "./calc-engine";
+import {
+  HEALTH_INSURANCE_TABLE,
+  PENSION_TABLE,
+} from "./tax-tables";
 
 // ============================================================
 // 法人税計算 - ctax()
@@ -107,24 +108,103 @@ export function calcIndividualBusinessTax(income: number): number {
 
 // ============================================================
 // 社会保険料（法人役員・月額給与ベース）
+// VBA SocialInsTS 関数に準拠
 // ============================================================
 
-function toRateSettings(rates: HojinnariRates): RateSettings {
-  return {
-    healthInsuranceRate: rates.healthInsuranceRate,
-    nursingCareRate: rates.nursingCareRate,
-    pensionRate: rates.pensionRate,
-    childcareContributionRate: 0,
-    healthBonusAnnualCap: 5730000,
-    pensionBonusPerPaymentCap: 1500000,
-  };
+/** 健康保険の上限標準報酬月額（VBA準拠: 1,210,000円） */
+const HOJINNARI_HEALTH_MAX_GRADE = 1210000;
+
+/** 厚生年金の上限標準報酬月額 */
+const HOJINNARI_PENSION_MAX_GRADE = 650000;
+
+/** 厚生年金の最低標準報酬月額（VBA準拠: 98,000円） */
+const PENSION_MIN_GRADE = 98000;
+
+/**
+ * 社会保険料の端数処理（被保険者負担分）
+ * 料率表注記: 50銭以下は切り捨て、50銭を超える場合は切り上げ
+ */
+function roundInsurance(amount: number): number {
+  const fraction = amount - Math.floor(amount);
+  return fraction > 0.5 ? Math.ceil(amount) : Math.floor(amount);
 }
 
-const CHILDCARE_CONTRIBUTION_RATE = 0.0036;
+/**
+ * 標準報酬月額テーブルから標準報酬月額を取得
+ */
+function lookupStandard(
+  monthlyIncome: number,
+  table: [number, number][],
+  maxGrade: number
+): number {
+  if (monthlyIncome <= 0) return 0;
+  const income = Math.floor(monthlyIncome);
+  for (const [limit, standardAmount] of table) {
+    if (income < limit) return standardAmount;
+  }
+  return maxGrade;
+}
+
+/**
+ * 健康保険料（月額・個人負担分）— VBA SocialInsTS 準拠
+ * 介護保険: 40〜70歳（VBA準拠）
+ * 上限等級: 1,210,000円（VBA準拠）
+ */
+function calcHojinnariHealthMonthly(
+  monthlyIncome: number,
+  age: number,
+  rates: HojinnariRates
+): number {
+  if (monthlyIncome <= 0) return 0;
+  if (age > 74) return 0;
+
+  const standard = lookupStandard(
+    monthlyIncome,
+    HEALTH_INSURANCE_TABLE,
+    HOJINNARI_HEALTH_MAX_GRADE
+  );
+  // VBA: 上限は1,210,000円
+  const capped = Math.min(standard, HOJINNARI_HEALTH_MAX_GRADE);
+
+  // 介護保険第2号被保険者: 40〜64歳
+  const rate = (age >= 40 && age <= 64)
+    ? rates.healthInsuranceRate + rates.nursingCareRate
+    : rates.healthInsuranceRate;
+
+  return capped * rate / 2;
+}
+
+/**
+ * 厚生年金保険料（月額・個人負担分）— VBA SocialInsTS 準拠
+ * 最低等級: 98,000円（VBA準拠）
+ * 70歳超は対象外
+ */
+function calcHojinnariPensionMonthly(
+  monthlyIncome: number,
+  age: number,
+  rates: HojinnariRates
+): number {
+  if (monthlyIncome <= 0 || age > 70) return 0;
+
+  // VBA: 月額93,000未満でも厚生年金の標準報酬月額は98,000円
+  let standard: number;
+  if (monthlyIncome < 93000) {
+    standard = PENSION_MIN_GRADE;
+  } else {
+    standard = lookupStandard(
+      monthlyIncome,
+      PENSION_TABLE,
+      HOJINNARI_PENSION_MAX_GRADE
+    );
+  }
+
+  return standard * rates.pensionRate / 2;
+}
 
 /**
  * 年間役員給与に対する社会保険料（個人負担分・法人負担分）
- * 法人負担分は個人負担分 + 子ども・子育て拠出金
+ * 個人負担: 健康保険 + 厚生年金 + 子ども・子育て支援金(折半)
+ * 法人負担: 個人負担と同額 + 子ども・子育て拠出金(会社のみ)
  */
 function calcSocialInsurancePair(
   annualSalary: number,
@@ -133,15 +213,49 @@ function calcSocialInsurancePair(
 ): { owner: number; employer: number } {
   if (annualSalary <= 0) { return { owner: 0, employer: 0 }; }
   const monthlySalary = annualSalary / 12;
-  const rs = toRateSettings(rates);
-  // 月額を円未満切り捨てしてから年額に
-  const healthMonthly = Math.floor(calcHealthInsuranceMonthly(monthlySalary, age, rs));
-  const pensionMonthly = Math.floor(calcPensionInsuranceMonthly(monthlySalary, age, rs));
-  const owner = (healthMonthly + pensionMonthly) * 12;
-  // 子ども・子育て拠出金（法人のみ負担、標準報酬月額ベース）
-  const childcare = Math.floor(annualSalary * CHILDCARE_CONTRIBUTION_RATE);
-  const employer = owner + childcare;
+
+  // 健康保険・厚生年金（50銭以下切捨て、50銭超切上げ）
+  const healthMonthly = roundInsurance(calcHojinnariHealthMonthly(monthlySalary, age, rates));
+  const pensionMonthly = roundInsurance(calcHojinnariPensionMonthly(monthlySalary, age, rates));
+
+  // 子ども・子育て支援金（健康保険の標準報酬月額 × 支援金率 / 2）
+  const healthStandard = lookupStandard(
+    Math.floor(monthlySalary),
+    HEALTH_INSURANCE_TABLE,
+    HOJINNARI_HEALTH_MAX_GRADE
+  );
+  const cappedHealthStandard = Math.min(healthStandard, HOJINNARI_HEALTH_MAX_GRADE);
+  const childcareSupportMonthly = roundInsurance(cappedHealthStandard * rates.childcareSupportRate / 2);
+
+  const ownerMonthly = healthMonthly + pensionMonthly + childcareSupportMonthly;
+  const owner = ownerMonthly * 12;
+
+  // 法人負担 = 個人負担と同額 + 子ども・子育て拠出金（厚生年金の標準報酬月額 × 拠出金率）
+  let pensionStandard: number;
+  if (monthlySalary < 93000) {
+    pensionStandard = PENSION_MIN_GRADE;
+  } else {
+    pensionStandard = lookupStandard(
+      Math.floor(monthlySalary),
+      PENSION_TABLE,
+      HOJINNARI_PENSION_MAX_GRADE
+    );
+  }
+  const childcareContribution = Math.floor(pensionStandard * 12 * rates.childcareContributionRate);
+  const employer = owner + childcareContribution;
+
   return { owner, employer };
+}
+
+/**
+ * 従業員会社負担保険料率を自動計算
+ * = (健康保険率 + 介護保険率) / 2 + 厚生年金率 / 2 + 支援金率 / 2 + 拠出金率
+ */
+export function calcEmployeeInsuranceRate(rates: HojinnariRates): number {
+  return (rates.healthInsuranceRate + rates.nursingCareRate) / 2
+    + rates.pensionRate / 2
+    + rates.childcareSupportRate / 2
+    + rates.childcareContributionRate;
 }
 
 // ============================================================
@@ -352,8 +466,9 @@ function calcCorpSide(
   rates: HojinnariRates,
   input: HojinnariInput
 ): CorpSideResult {
-  // 従業員会社負担社会保険料
-  const employeeEmployerSI = Math.floor(input.employeeSalary * rates.employeeInsuranceRate);
+  // 従業員会社負担社会保険料（自動計算した料率を使用）
+  const employeeRate = calcEmployeeInsuranceRate(rates);
+  const employeeEmployerSI = Math.floor(input.employeeSalary * employeeRate);
   const totalEmployerSI = ownerEmployerSI + employeeEmployerSI;
 
   const corporateIncomeRaw = Math.max(0, revenue - salaries - totalEmployerSI);

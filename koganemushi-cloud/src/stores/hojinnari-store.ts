@@ -25,9 +25,11 @@ const DEFAULT_DECISION_MEASURES: DecisionMeasure[] = [
 ];
 
 export const DEFAULT_HOJINNARI_RATES: HojinnariRates = {
-  healthInsuranceRate: 0.0991,
-  nursingCareRate: 0.0159,
+  healthInsuranceRate: 0.0985,
+  nursingCareRate: 0.0162,
   pensionRate: 0.183,
+  childcareSupportRate: 0.0023,
+  childcareContributionRate: 0.0036,
   corporateTaxRate1: 0.15,
   corporateTaxRate2: 0.232,
   localCorpTaxRate: 0.104,
@@ -38,7 +40,6 @@ export const DEFAULT_HOJINNARI_RATES: HojinnariRates = {
   medicalBusinessTaxRate1: 0.035,
   medicalBusinessTaxRate2: 0.049,
   medicalBusinessTaxRate3: 0.07,
-  employeeInsuranceRate: 0.153,
 };
 
 export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {

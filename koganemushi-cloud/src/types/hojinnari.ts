@@ -81,9 +81,11 @@ export interface HojinnariInput {
 /** 料率・税率設定 */
 export interface HojinnariRates {
   // 社会保険料率（法人役員向け）
-  healthInsuranceRate: number;     // 健康保険料率（例: 0.0991）
-  nursingCareRate: number;         // 介護保険料率（例: 0.018）
+  healthInsuranceRate: number;     // 健康保険料率（例: 0.0985）
+  nursingCareRate: number;         // 介護保険料率（例: 0.0162）
   pensionRate: number;             // 厚生年金料率（例: 0.183）
+  childcareSupportRate: number;    // 子ども・子育て支援金率（労使折半、例: 0.0023）
+  childcareContributionRate: number; // 子ども・子育て拠出金率（会社のみ、例: 0.0036）
   // 法人税
   corporateTaxRate1: number;       // 法人税率① 800万以下（例: 0.15）
   corporateTaxRate2: number;       // 法人税率② 800万超（例: 0.23）
@@ -97,8 +99,8 @@ export interface HojinnariRates {
   medicalBusinessTaxRate1: number; // 医療法人事業税率① 400万以下（例: 0.035）
   medicalBusinessTaxRate2: number; // 医療法人事業税率② 400〜800万（例: 0.049）
   medicalBusinessTaxRate3: number; // 医療法人事業税率③ 800万超（例: 0.07）
-  // 従業員社会保険
-  employeeInsuranceRate: number;   // 従業員会社負担保険料率（例: 0.153）
+  // 従業員社会保険（自動計算: 健康保険+介護+年金+支援金+拠出金の会社負担）
+  // employeeInsuranceRate は rates から自動算出
 }
 
 /** 現状（個人事業主）の計算結果 */

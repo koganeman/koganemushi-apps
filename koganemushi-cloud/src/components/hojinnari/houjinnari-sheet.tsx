@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import { formatYen, formatPercent, parsePercent } from "@/lib/format";
-import { calcSocialInsuranceIncome } from "@/lib/hojinnari-calc";
+import { calcSocialInsuranceIncome, calcEmployeeInsuranceRate } from "@/lib/hojinnari-calc";
 import { Input } from "@/components/ui/input";
 
 function YenInput({
@@ -159,12 +159,11 @@ export function HoujinnariSheet() {
             <InputRow label="厚生年金保険料率">
               <PercentInput value={rates.pensionRate} onChange={(v) => setRates({ pensionRate: v })} />
             </InputRow>
-          </div>
-
-          <h3 className="text-xs font-semibold text-gray-500 uppercase pt-2">従業員社会保険</h3>
-          <div className="space-y-2">
-            <InputRow label="従業員会社負担保険料率">
-              <PercentInput value={rates.employeeInsuranceRate} onChange={(v) => setRates({ employeeInsuranceRate: v })} />
+            <InputRow label="子ども・子育て支援金率（労使折半）">
+              <PercentInput value={rates.childcareSupportRate} onChange={(v) => setRates({ childcareSupportRate: v })} />
+            </InputRow>
+            <InputRow label="子ども・子育て拠出金率（会社のみ）">
+              <PercentInput value={rates.childcareContributionRate} onChange={(v) => setRates({ childcareContributionRate: v })} />
             </InputRow>
           </div>
         </div>
@@ -317,14 +316,14 @@ export function HoujinnariSheet() {
                 />
               </InputRow>
               <div className="grid grid-cols-2 gap-2 items-center text-xs text-gray-600">
-                <span>従業員会社負担保険料率</span>
-                <span className="text-right font-mono">{formatPercent(rates.employeeInsuranceRate)}%</span>
+                <span>従業員会社負担保険料率（自動計算）</span>
+                <span className="text-right font-mono">{formatPercent(calcEmployeeInsuranceRate(rates))}%</span>
               </div>
               {input.employeeSalary > 0 && (
                 <div className="p-2 bg-yellow-50 rounded text-xs">
                   <span className="text-gray-600">従業員会社負担分：</span>
                   <span className="font-mono font-semibold">
-                    {formatYen(Math.floor(input.employeeSalary * rates.employeeInsuranceRate))}
+                    {formatYen(Math.floor(input.employeeSalary * calcEmployeeInsuranceRate(rates)))}
                   </span>
                   <span className="text-gray-500 ml-1">円</span>
                   {input.isMedicalCorporation && (
