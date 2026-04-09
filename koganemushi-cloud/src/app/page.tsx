@@ -1,139 +1,52 @@
-"use client";
+import Link from "next/link";
+import { TOOLS, type ToolInfo } from "@/lib/tools";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
-import { RateSettingsPanel } from "@/components/rate-settings";
-import { ExecutiveTable } from "@/components/executive-table";
-import { HojinzeiSheet } from "@/components/hojinzei-sheet";
-import { HoukokushoSheet } from "@/components/houkokusho-sheet";
-import { OptimizationSheet } from "@/components/optimization-sheet";
-import { useSimulationStore, type Tab } from "@/stores/simulation-store";
-import { useShallow } from "zustand/react/shallow";
-import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
-import { formatYen } from "@/lib/format";
-
-const VISIBLE_COUNT = 10;
-
-const TAB_LABELS: { id: Tab; label: string }[] = [
-  { id: "simulation", label: "シミュレーション" },
-  { id: "hojinzei", label: "法人税" },
-  { id: "houkokusho", label: "報告書" },
-  { id: "saitekika", label: "最適化" },
-];
-
-export default function SimulationPage() {
-  const {
-    activeTab,
-    setActiveTab,
-    governmentHealthInsurance,
-    setGovernmentHealthInsurance,
-    combineOtherSalaryForInsurance,
-    setCombineOtherSalaryForInsurance,
-    transferCurrentToComparison,
-  } = useSimulationStore(
-    useShallow((s) => ({
-      activeTab: s.activeTab,
-      setActiveTab: s.setActiveTab,
-      governmentHealthInsurance: s.governmentHealthInsurance,
-      setGovernmentHealthInsurance: s.setGovernmentHealthInsurance,
-      combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
-      setCombineOtherSalaryForInsurance: s.setCombineOtherSalaryForInsurance,
-      transferCurrentToComparison: s.transferCurrentToComparison,
-    }))
+function StatusBadge({ status }: { status: ToolInfo["status"] }) {
+  const styles = {
+    active: "bg-green-100 text-green-800",
+    dev: "bg-yellow-100 text-yellow-800",
+    "coming-soon": "bg-gray-100 text-gray-500",
+  };
+  const labels = {
+    active: "稼働中",
+    dev: "開発中",
+    "coming-soon": "準備中",
+  };
+  return (
+    <span
+      className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${styles[status]}`}
+    >
+      {labels[status]}
+    </span>
   );
+}
 
-  const { corporateTax: currentCorporateTax } = useCurrentResults();
-  const { corporateTax: comparisonCorporateTax } = useComparisonResults();
-
+export default function TopPage() {
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* タブナビゲーション */}
-      <div className="bg-white border-b px-6 flex gap-0">
-        {TAB_LABELS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-blue-600 text-blue-700 bg-blue-50"
-                : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <main className="max-w-[1800px] mx-auto">
-        {/* シミュレーションタブ */}
-        {activeTab === "simulation" && (
-          <div className="p-4 space-y-6">
-            {/* 料率設定 */}
-            <RateSettingsPanel />
-
-            {/* グローバルフラグ */}
-            <div className="flex items-center gap-6 px-2">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={governmentHealthInsurance}
-                  onCheckedChange={(c) => setGovernmentHealthInsurance(!!c)}
-                />
-                政管健保（協会けんぽ）
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={combineOtherSalaryForInsurance}
-                  onCheckedChange={(c) => setCombineOtherSalaryForInsurance(!!c)}
-                />
-                他の給与収入を社保対象に合算（1人目のみ）
-              </label>
-            </div>
-
-            {/* 現状 */}
-            <section>
-              <div className="flex items-center gap-4 mb-2">
-                <h2 className="text-base font-bold">
-                  <span className="inline-block w-3 h-3 bg-black rounded-full mr-1" />
-                  現状の役員報酬設定
-                </h2>
-              </div>
-              <ExecutiveTable plan="current" visibleCount={VISIBLE_COUNT} />
-              <div className="mt-2 flex items-center gap-4">
-                <span className="text-sm">
-                  法人税金合計: <strong>{formatYen(currentCorporateTax)}</strong> 円
-                </span>
-              </div>
-            </section>
-
-            {/* 比較 */}
-            <section>
-              <div className="flex items-center gap-4 mb-2">
-                <h2 className="text-base font-bold">
-                  <span className="inline-block w-3 h-3 bg-black rounded-full mr-1" />
-                  比較用の役員報酬設定
-                </h2>
-                <Button size="sm" variant="outline" onClick={transferCurrentToComparison}>
-                  現状から転記
-                </Button>
-              </div>
-              <ExecutiveTable plan="comparison" visibleCount={VISIBLE_COUNT} />
-              <div className="mt-2 flex items-center gap-4">
-                <span className="text-sm">
-                  法人税金合計: <strong>{formatYen(comparisonCorporateTax)}</strong> 円
-                </span>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* 法人税タブ */}
-        {activeTab === "hojinzei" && <HojinzeiSheet />}
-
-        {/* 最適化タブ */}
-        {activeTab === "saitekika" && <OptimizationSheet />}
-
-        {/* 報告書タブ */}
-        {activeTab === "houkokusho" && <HoukokushoSheet />}
+      <main className="max-w-[1200px] mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6">ツール一覧</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {TOOLS.map((tool) => (
+            <Link key={tool.id} href={tool.href}>
+              <Card className="h-full hover:ring-2 hover:ring-blue-400 transition-all cursor-pointer">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-sm">{tool.name}</CardTitle>
+                    <StatusBadge status={tool.status} />
+                  </div>
+                  <CardDescription>{tool.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </main>
     </div>
   );

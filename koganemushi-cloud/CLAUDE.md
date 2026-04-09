@@ -1,13 +1,30 @@
 # koganemushi-cloud
 
-税金・節税シミュレーション群のWebアプリ。役員報酬シミュレーション（`/`）を皮切りに、複数の機能を追加予定。
+税金・節税シミュレーション群のWebアプリ。トップページ（`/`）はツール一覧のリンク集。
 
 ## URL一覧
 
 | URL | 機能 | 状態 |
 |-----|------|------|
-| `/` | 役員報酬シミュレーション | 稼働中 |
+| `/` | ツール一覧（Top） | 稼働中 |
+| `/yakuin-hoshu` | 役員報酬シミュレーション | 稼働中 |
 | `/hojinnari` | 法人なりシミュレーション | 開発中 |
+| `/furusato-nouzei` 他14件 | 各種税金計算ツール | 準備中 |
+
+ツール定義は `src/lib/tools.ts` で一元管理。
+
+## 新ツール追加手順
+
+準備中のツールを実装する際は以下の手順で進める。
+
+1. **`src/lib/tools.ts`** の該当ツールの `status` を `"coming-soon"` → `"dev"` or `"active"` に変更
+2. **`src/app/{slug}/page.tsx`** の `ComingSoonPage` を実際のページコンポーネントに差し替え
+3. 必要に応じて `src/stores/` にZustandストアを追加（`persist` ミドルウェアでlocalStorageに保存。既存ストアを参考）
+4. 計算ロジックは `src/lib/` に純粋関数として配置（UIに依存しない）
+5. 型定義は `src/types/` に配置
+6. このファイルのURL一覧を更新
+
+既存の実装例: 役員報酬(`/yakuin-hoshu`)、法人なり(`/hojinnari`)
 
 ## コマンド
 
@@ -29,8 +46,14 @@ npx vitest run   # テスト実行
 
 ```
 src/
-  app/page.tsx              # メインSPA（タブ切り替え）
+  app/
+    page.tsx                # トップページ（ツール一覧リンク集）
+    yakuin-hoshu/page.tsx   # 役員報酬シミュレーション
+    hojinnari/page.tsx      # 法人なりシミュレーション
+    {slug}/page.tsx         # 各ツールページ（準備中はComingSoonPage）
   components/
+    header-nav.tsx          # Topボタン（Client Component）
+    coming-soon.tsx         # 準備中ページ共通コンポーネント
     executive-table.tsx     # 役員入力テーブル
     rate-settings.tsx       # 料率設定パネル
     hojinzei-sheet.tsx      # 法人税シート
@@ -38,6 +61,7 @@ src/
     optimization-sheet.tsx  # 最適化シート
     ui/                     # shadcn/ui コンポーネント
   lib/
+    tools.ts                # 16ツール定義（一元管理）
     calc-engine.ts          # 全計算ロジック（純粋関数）
     optimize.ts             # 最適化アルゴリズム（純粋関数）
     tax-tables.ts           # 保険料率・税率テーブル定数
