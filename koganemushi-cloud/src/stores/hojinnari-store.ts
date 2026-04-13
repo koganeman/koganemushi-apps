@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { HojinnariInput, HojinnariRates, FamilyMember, DecisionMeasure } from "@/types/hojinnari";
 
-export type HojinnariTab = "simulation" | "houjinnari" | "houkokusho" | "saitekika";
+export type HojinnariTab = "simulation" | "houjinnari" | "houkokusho" | "saitekika" | "keisan-meisai";
 
 const EMPTY_FAMILY_MEMBER: FamilyMember = {
   age: 0,
@@ -68,6 +68,9 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
   // PLAN2: 完全法人成り
   plan2Salary: 0,
   plan2SpouseSalary: 0,
+
+  // 非常勤役員
+  isNonExecutive: true,
 
   // 医療法人
   isMedicalCorporation: false,

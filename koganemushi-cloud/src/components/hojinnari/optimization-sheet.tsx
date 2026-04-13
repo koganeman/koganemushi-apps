@@ -4,12 +4,10 @@ import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import {
   optimizePlan2Salary,
-  findOptimalPlan2Salary,
   calcPlan1,
-  calcPlan2,
+  calcIndividual,
 } from "@/lib/hojinnari-calc";
 import { formatYen, parseYen } from "@/lib/format";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 function YenInput({
@@ -42,64 +40,52 @@ export function OptimizationSheet() {
     );
   }
 
-  // PLAN2 最適化
-  const plan2Points = optimizePlan2Salary(input, rates, 1000000);
-  const optimalPlan2Salary = findOptimalPlan2Salary(input, rates, 1000000);
-  const plan2MaxNet = plan2Points.reduce((m, p) => Math.max(m, p.totalNetIncome), -Infinity);
+  // 現在の個人手取額
+  const individual = calcIndividual(input);
+  const currentNetIncome = individual.netIncome;
 
-  // PLAN1 最適化（移転売上を変化させる）
+  // PLAN1（完全法人成り）最適化: 役員報酬を変化させる
+  const plan2Points = optimizePlan2Salary(input, rates, 1000000);
+
+  // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる
   const plan1Points: Array<{
-    microRevenue: number;
+    salary: number;
     combinedNetIncome: number;
     ownerNetIncome: number;
     corporateRetained: number;
   }> = [];
   const step = 1000000;
-  for (let rev = 0; rev <= input.businessIncome; rev += step) {
-    const modified = { ...input, plan1MicroRevenue: rev };
+  const microRevenue = input.plan1MicroRevenue;
+  for (let sal = 0; sal <= input.businessIncome; sal += step) {
+    const modified = { ...input, plan1MicroSalary: sal };
     const r = calcPlan1(modified, rates);
     plan1Points.push({
-      microRevenue: rev,
+      salary: sal,
       combinedNetIncome: r.combinedNetIncome,
       ownerNetIncome: r.ownerNetIncome,
       corporateRetained: r.corporateRetained,
     });
   }
-  const plan1MaxNet = plan1Points.reduce((m, p) => Math.max(m, p.combinedNetIncome), -Infinity);
-  const optimalPlan1Rev = plan1Points.reduce((best, p) =>
-    p.combinedNetIncome > best.combinedNetIncome ? p : best
-  ).microRevenue;
 
   return (
     <div className="p-4 space-y-4">
-      {/* PLAN2 最適化 */}
+      {/* PLAN1 完全法人成り 最適化 */}
       <div className="bg-white rounded border p-4 space-y-3">
         <h2 className="font-bold text-sm border-b pb-2">
-          <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN2</span>
+          <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN1</span>
           完全法人成り — 役員報酬の最適化
         </h2>
         <p className="text-xs text-gray-500">
-          今、完全法人化するといくら役員報酬を取れば手取りが最大になるか
+          今、法人成りするといくら役員報酬がもらえるか？
         </p>
 
         <div className="flex flex-wrap gap-4 items-end mb-2">
           <div>
-            <p className="text-xs text-gray-500">最適役員報酬</p>
-            <p className="text-xl font-bold text-orange-600">{formatYen(optimalPlan2Salary)}</p>
+            <p className="text-xs text-gray-500">現在の個人手取額</p>
+            <p className="text-xl font-bold text-gray-700">{formatYen(currentNetIncome)}</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-500">そのときの合算手取り</p>
-            <p className="text-xl font-bold">{formatYen(plan2MaxNet)}</p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setInput({ plan2Salary: optimalPlan2Salary })}
-          >
-            PLAN2に適用
-          </Button>
         </div>
-        <p className="text-xs text-gray-400">※ 100万円刻みで試算。実際の最適値はこの前後にある場合があります。</p>
+        <p className="text-xs text-gray-400">※ 100万円刻みで試算</p>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[480px] text-xs">
@@ -108,26 +94,26 @@ export function OptimizationSheet() {
                 <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">役員報酬</th>
                 <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">役員手取り</th>
                 <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">法人内部留保</th>
-                <th className="text-right py-1 px-2 font-medium text-gray-500">合算CF手取り</th>
+                <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">合算CF手取り</th>
+                <th className="text-right py-1 px-2 font-medium text-gray-500">現在との比較</th>
               </tr>
             </thead>
             <tbody>
               {plan2Points.map((p) => {
-                const isOptimal = p.totalNetIncome === plan2MaxNet;
-                const isCurrent = p.salary === input.plan2Salary;
+                const diff = p.totalNetIncome - currentNetIncome;
                 return (
                   <tr
                     key={p.salary}
-                    className={`border-b ${isOptimal ? "bg-orange-50 font-bold" : ""} ${isCurrent ? "bg-blue-50" : ""}`}
+                    className={`border-b ${p.salary === input.plan2Salary ? "bg-blue-50" : ""}`}
                   >
-                    <td className="py-1 px-2 text-right font-mono border-r">
-                      {formatYen(p.salary)}
-                      {isOptimal && <span className="ml-1 text-orange-600 text-[10px]">★最適</span>}
-                    </td>
+                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.salary)}</td>
                     <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.ownerNetIncome)}</td>
-                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.corporateRetained)}</td>
-                    <td className={`py-1 px-2 text-right font-mono ${isOptimal ? "text-orange-700" : ""}`}>
-                      {formatYen(p.totalNetIncome)}
+                    <td className={`py-1 px-2 text-right font-mono border-r ${p.corporateRetained < 0 ? "text-red-600" : ""}`}>
+                      {formatYen(p.corporateRetained)}
+                    </td>
+                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.totalNetIncome)}</td>
+                    <td className={`py-1 px-2 text-right font-mono ${diff >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {diff >= 0 ? "+" : ""}{formatYen(diff)}
                     </td>
                   </tr>
                 );
@@ -135,24 +121,84 @@ export function OptimizationSheet() {
             </tbody>
           </table>
         </div>
+
+        {/* PLAN1 コメント */}
+        {(() => {
+          const best = plan2Points.reduce((a, b) =>
+            (b.totalNetIncome - currentNetIncome) > (a.totalNetIncome - currentNetIncome) ? b : a
+          );
+          const bestDiff = best.totalNetIncome - currentNetIncome;
+          const ownerDiff = best.ownerNetIncome - currentNetIncome;
+          // 役員手取り >= 現在の個人手取額 かつ 合算CFがプラスになるケース
+          const maintained = plan2Points.filter(
+            (p) => p.ownerNetIncome >= currentNetIncome && p.totalNetIncome > currentNetIncome
+          );
+          // その中で合算CF差額が最大のもの
+          const bestMaintained = maintained.length > 0
+            ? maintained.reduce((a, b) =>
+                (b.totalNetIncome - currentNetIncome) > (a.totalNetIncome - currentNetIncome) ? b : a
+              )
+            : null;
+          return (
+            <div className="bg-orange-50 border border-orange-200 rounded p-3 text-sm space-y-1">
+              <p>
+                合算CF手取りの現在との比較が最大になるのは、役員報酬
+                <span className="font-bold text-orange-700"> {formatYen(best.salary)} </span>
+                のときで、現在より
+                <span className={`font-bold ${bestDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {" "}{bestDiff >= 0 ? "+" : ""}{formatYen(bestDiff)}
+                </span>
+                {bestDiff >= 0 ? " 有利" : " 不利"}になります。
+              </p>
+              <p>
+                ただし、その場合の役員手取りは
+                <span className="font-bold"> {formatYen(best.ownerNetIncome)} </span>
+                となり、現在の個人手取額と比べると
+                <span className={`font-bold ${ownerDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {" "}{ownerDiff >= 0 ? "+" : ""}{formatYen(ownerDiff)}
+                </span>
+                {ownerDiff < 0 ? "（個人の手取りは減少します）" : ""}。
+              </p>
+              {bestMaintained ? (
+                <p>
+                  現在の手取りを維持しつつ合算CFがプラスになるのは、役員報酬
+                  <span className="font-bold text-orange-700"> {formatYen(bestMaintained.salary)} </span>
+                  のときで、合算CF差額は
+                  <span className="font-bold text-green-700">
+                    {" "}+{formatYen(bestMaintained.totalNetIncome - currentNetIncome)}
+                  </span>
+                  です。
+                </p>
+              ) : (
+                <p className="text-red-600">
+                  現在の手取りを維持しつつ合算CFがプラスになる役員報酬額はありません。
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
-      {/* PLAN1 最適化 */}
+      {/* PLAN2 マイクロ法人成り 最適化 */}
       <div className="bg-white rounded border p-4 space-y-3">
         <h2 className="font-bold text-sm border-b pb-2">
-          <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN1</span>
+          <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN2</span>
           マイクロ法人成り — 移転売上の最適化
         </h2>
         <p className="text-xs text-gray-500">
-          法人に移転する売上をいくらにすれば合算手取りが最大になるか
+          マイクロ法人成り　役員報酬をどれだけ抑えれば有利なのか？
         </p>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+        <div className="flex flex-wrap gap-4 items-end mb-2">
           <div>
-            <p className="text-xs text-gray-500 mb-1">役員報酬（固定）</p>
+            <p className="text-xs text-gray-500">現在の個人手取額</p>
+            <p className="text-xl font-bold text-gray-700">{formatYen(currentNetIncome)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">法人移転売上（固定）</p>
             <YenInput
-              value={input.plan1MicroSalary}
-              onChange={(v) => setInput({ plan1MicroSalary: v })}
+              value={input.plan1MicroRevenue}
+              onChange={(v) => setInput({ plan1MicroRevenue: v })}
             />
           </div>
           <div>
@@ -162,48 +208,36 @@ export function OptimizationSheet() {
               onChange={(v) => setInput({ plan1SpouseSalary: v })}
             />
           </div>
-          <div className="flex flex-col justify-end">
-            <p className="text-xs text-gray-500">最適移転売上</p>
-            <p className="text-lg font-bold text-blue-700">{formatYen(optimalPlan1Rev)}</p>
-          </div>
-          <div className="flex flex-col justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setInput({ plan1MicroRevenue: optimalPlan1Rev })}
-            >
-              PLAN1に適用
-            </Button>
-          </div>
         </div>
+        <p className="text-xs text-gray-400">※ 100万円刻みで試算</p>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[480px] text-xs">
             <thead>
               <tr className="border-b bg-gray-50">
-                <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">法人移転売上</th>
+                <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">役員報酬</th>
                 <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">役員手取り</th>
                 <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">法人内部留保</th>
-                <th className="text-right py-1 px-2 font-medium text-gray-500">合算CF手取り</th>
+                <th className="text-right py-1 px-2 font-medium text-gray-500 border-r">合算CF手取り</th>
+                <th className="text-right py-1 px-2 font-medium text-gray-500">現在との比較</th>
               </tr>
             </thead>
             <tbody>
               {plan1Points.map((p) => {
-                const isOptimal = p.combinedNetIncome === plan1MaxNet;
-                const isCurrent = p.microRevenue === input.plan1MicroRevenue;
+                const diff = p.combinedNetIncome - currentNetIncome;
                 return (
                   <tr
-                    key={p.microRevenue}
-                    className={`border-b ${isOptimal ? "bg-blue-50 font-bold" : ""} ${isCurrent ? "bg-yellow-50" : ""}`}
+                    key={p.salary}
+                    className={`border-b ${p.salary === input.plan1MicroSalary ? "bg-blue-50" : ""}`}
                   >
-                    <td className="py-1 px-2 text-right font-mono border-r">
-                      {formatYen(p.microRevenue)}
-                      {isOptimal && <span className="ml-1 text-blue-600 text-[10px]">★最適</span>}
-                    </td>
+                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.salary)}</td>
                     <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.ownerNetIncome)}</td>
-                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.corporateRetained)}</td>
-                    <td className={`py-1 px-2 text-right font-mono ${isOptimal ? "text-blue-700" : ""}`}>
-                      {formatYen(p.combinedNetIncome)}
+                    <td className={`py-1 px-2 text-right font-mono border-r ${p.corporateRetained < 0 ? "text-red-600" : ""}`}>
+                      {formatYen(p.corporateRetained)}
+                    </td>
+                    <td className="py-1 px-2 text-right font-mono border-r">{formatYen(p.combinedNetIncome)}</td>
+                    <td className={`py-1 px-2 text-right font-mono ${diff >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {diff >= 0 ? "+" : ""}{formatYen(diff)}
                     </td>
                   </tr>
                 );
@@ -211,27 +245,61 @@ export function OptimizationSheet() {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* 比較サマリー */}
-      <div className="bg-white rounded border p-4">
-        <h3 className="font-bold text-sm mb-3">現在の設定での比較</h3>
-        <div className="grid grid-cols-3 gap-3 text-center text-sm">
-          {[
-            { label: "PLAN1 合算CF", value: calcPlan1(input, rates).combinedNetIncome, color: "blue" },
-            { label: "PLAN2 合算CF", value: calcPlan2(input, rates).combinedNetIncome, color: "orange" },
-            { label: "有利プラン", value: calcPlan1(input, rates).combinedNetIncome >= calcPlan2(input, rates).combinedNetIncome ? "PLAN1" : "PLAN2", isText: true, color: "gray" },
-          ].map((item, i) => (
-            <div key={i} className="border rounded p-3">
-              <p className="text-xs text-gray-500">{item.label}</p>
-              {item.isText ? (
-                <p className="text-lg font-bold text-gray-700">{item.value}</p>
+        {/* PLAN2 コメント */}
+        {(() => {
+          const best = plan1Points.reduce((a, b) =>
+            (b.combinedNetIncome - currentNetIncome) > (a.combinedNetIncome - currentNetIncome) ? b : a
+          );
+          const bestDiff = best.combinedNetIncome - currentNetIncome;
+          const ownerDiff = best.ownerNetIncome - currentNetIncome;
+          // 役員手取り >= 現在の個人手取額 かつ 合算CFがプラスになるケース
+          const maintained = plan1Points.filter(
+            (p) => p.ownerNetIncome >= currentNetIncome && p.combinedNetIncome > currentNetIncome
+          );
+          const bestMaintained = maintained.length > 0
+            ? maintained.reduce((a, b) =>
+                (b.combinedNetIncome - currentNetIncome) > (a.combinedNetIncome - currentNetIncome) ? b : a
+              )
+            : null;
+          return (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm space-y-1">
+              <p>
+                合算CF手取りの現在との比較が最大になるのは、役員報酬
+                <span className="font-bold text-blue-700"> {formatYen(best.salary)} </span>
+                のときで、現在より
+                <span className={`font-bold ${bestDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {" "}{bestDiff >= 0 ? "+" : ""}{formatYen(bestDiff)}
+                </span>
+                {bestDiff >= 0 ? " 有利" : " 不利"}になります。
+              </p>
+              <p>
+                ただし、その場合の役員手取りは
+                <span className="font-bold"> {formatYen(best.ownerNetIncome)} </span>
+                となり、現在の個人手取額と比べると
+                <span className={`font-bold ${ownerDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+                  {" "}{ownerDiff >= 0 ? "+" : ""}{formatYen(ownerDiff)}
+                </span>
+                {ownerDiff < 0 ? "（個人の手取りは減少します）" : ""}。
+              </p>
+              {bestMaintained ? (
+                <p>
+                  現在の手取りを維持しつつ合算CFがプラスになるのは、役員報酬
+                  <span className="font-bold text-blue-700"> {formatYen(bestMaintained.salary)} </span>
+                  のときで、合算CF差額は
+                  <span className="font-bold text-green-700">
+                    {" "}+{formatYen(bestMaintained.combinedNetIncome - currentNetIncome)}
+                  </span>
+                  です。
+                </p>
               ) : (
-                <p className={`text-lg font-bold text-${item.color}-700`}>{formatYen(item.value as number)}</p>
+                <p className="text-red-600">
+                  現在の手取りを維持しつつ合算CFがプラスになる役員報酬額はありません。
+                </p>
               )}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
     </div>
   );

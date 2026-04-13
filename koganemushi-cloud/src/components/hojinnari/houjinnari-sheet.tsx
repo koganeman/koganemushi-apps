@@ -168,9 +168,9 @@ export function HoujinnariSheet() {
           </div>
         </div>
 
-        {/* ---- 完全法人成り ---- */}
+        {/* ---- PLAN1: 完全法人成り ---- */}
         <div className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-bold text-sm border-b pb-2">完全法人成り</h2>
+          <h2 className="font-bold text-sm border-b pb-2">PLAN1: 完全法人成り</h2>
           <p className="text-xs text-gray-500">
             全ての事業を法人化し、役員報酬として受け取るプラン
           </p>
@@ -190,6 +190,18 @@ export function HoujinnariSheet() {
                 onChange={(v) => setInput({ plan2SpouseSalary: v })}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isNonExecutive"
+                checked={input.isNonExecutive ?? true}
+                onChange={(e) => setInput({ isNonExecutive: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <label htmlFor="isNonExecutive" className="text-sm text-gray-600">
+                非常勤役員（他社給与を標準報酬に合算しない）
+              </label>
+            </div>
           </div>
 
           <div className="mt-4 p-3 bg-blue-50 rounded text-xs text-gray-600 space-y-1">
@@ -205,9 +217,9 @@ export function HoujinnariSheet() {
           </div>
         </div>
 
-        {/* ---- マイクロ法人成り ---- */}
+        {/* ---- PLAN2: マイクロ法人成り ---- */}
         <div className="bg-white rounded border p-4 space-y-3">
-          <h2 className="font-bold text-sm border-b pb-2">マイクロ法人成り</h2>
+          <h2 className="font-bold text-sm border-b pb-2">PLAN2: マイクロ法人成り</h2>
           <p className="text-xs text-gray-500">
             個人事業の一部を別法人に移転し、残りは個人事業として継続するプラン
           </p>

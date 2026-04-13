@@ -6,12 +6,14 @@ import { DecisionMeasuresTable } from "@/components/hojinnari/decision-measures-
 import { HoujinnariSheet } from "@/components/hojinnari/houjinnari-sheet";
 import { HoukokushoSheet } from "@/components/hojinnari/houkokusho-sheet";
 import { OptimizationSheet } from "@/components/hojinnari/optimization-sheet";
+import { CalcDetailSheet } from "@/components/hojinnari/calc-detail-sheet";
 
 const TAB_LABELS: { id: HojinnariTab; label: string }[] = [
   { id: "simulation", label: "シミュレーション" },
   { id: "houjinnari", label: "法人成り" },
   { id: "houkokusho", label: "報告書" },
   { id: "saitekika", label: "最適化" },
+  { id: "keisan-meisai", label: "計算明細" },
 ];
 
 export default function HojinnariPage() {
@@ -47,6 +49,7 @@ export default function HojinnariPage() {
         {activeTab === "houjinnari" && <HoujinnariSheet />}
         {activeTab === "houkokusho" && <HoukokushoSheet />}
         {activeTab === "saitekika" && <OptimizationSheet />}
+        {activeTab === "keisan-meisai" && <CalcDetailSheet />}
       </main>
     </div>
   );

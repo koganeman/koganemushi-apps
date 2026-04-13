@@ -68,6 +68,9 @@ export interface HojinnariInput {
   plan2Salary: number;          // 役員報酬（年額）
   plan2SpouseSalary: number;    // 配偶者への給与
 
+  // 非常勤役員フラグ（true: 他社給与を標準報酬に合算しない）
+  isNonExecutive: boolean;
+
   // 医療法人
   isMedicalCorporation: boolean;          // 医療法人フラグ
   socialInsuranceMedicalRevenue: number;  // 社会保険分医業収入

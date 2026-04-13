@@ -115,8 +115,8 @@ function PersonalTaxDetailTable({
               個人所得税・住民税の計算明細
             </th>
             <th className={thCls}>現状</th>
-            <th className={thCls}>Plan1（マイクロ法人）</th>
-            <th className={thCls}>Plan2（完全法人成り）</th>
+            <th className={thCls}>Plan1（完全法人成り）</th>
+            <th className={thCls}>Plan2（マイクロ法人）</th>
           </tr>
         </thead>
         <tbody>
@@ -134,8 +134,8 @@ function PersonalTaxDetailTable({
                   <tr key={row.key}>
                     <td className={labelCls}>{row.label}</td>
                     <td className={valCls}>{formatTaxValue(row, current)}</td>
-                    <td className={valCls}>{formatTaxValue(row, plan1)}</td>
                     <td className={valCls}>{formatTaxValue(row, plan2)}</td>
+                    <td className={valCls}>{formatTaxValue(row, plan1)}</td>
                   </tr>
                 );
               })}
@@ -208,8 +208,8 @@ function CorpTaxDetailTable({
             <th className={thLabelCls} style={{ width: "180px" }}>
               法人税の計算明細
             </th>
-            <th className={thCls}>Plan1（マイクロ法人）</th>
-            <th className={thCls}>Plan2（完全法人成り）</th>
+            <th className={thCls}>Plan1（完全法人成り）</th>
+            <th className={thCls}>Plan2（マイクロ法人）</th>
           </tr>
         </thead>
         <tbody>
@@ -226,8 +226,8 @@ function CorpTaxDetailTable({
                 return (
                   <tr key={row.key}>
                     <td className={labelCls}>{row.label}</td>
-                    <td className={valCls}>{formatCorpValue(row, plan1)}</td>
                     <td className={valCls}>{formatCorpValue(row, plan2)}</td>
+                    <td className={valCls}>{formatCorpValue(row, plan1)}</td>
                   </tr>
                 );
               })}
@@ -299,8 +299,8 @@ function NetIncomeDetailTable({
               個人手取り額の計算明細
             </th>
             <th className={thCls}>現状</th>
-            <th className={thCls}>Plan1（マイクロ法人）</th>
-            <th className={thCls}>Plan2（完全法人成り）</th>
+            <th className={thCls}>Plan1（完全法人成り）</th>
+            <th className={thCls}>Plan2（マイクロ法人）</th>
           </tr>
         </thead>
         <tbody>
@@ -319,8 +319,8 @@ function NetIncomeDetailTable({
                   <tr key={row.key}>
                     <td className={labelCls}>{row.label}</td>
                     <td className={valCls}>{v(current)}</td>
-                    <td className={valCls}>{v(plan1)}</td>
                     <td className={valCls}>{v(plan2)}</td>
+                    <td className={valCls}>{v(plan1)}</td>
                   </tr>
                 );
               })}
