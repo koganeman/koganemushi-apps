@@ -7,9 +7,13 @@ import type {
   PlanResult,
   CorporateResult,
   HojinnariResult,
+  TaxDetailBreakdown,
+  CorpTaxDetailBreakdown,
+  NetIncomeDetailBreakdown,
 } from "@/types/hojinnari";
 import {
   calcIncomeTax,
+  calcIncomeTaxWithDetail,
   calcBasicDeduction,
   calcSalaryIncome,
 } from "./calc-engine";
@@ -316,7 +320,7 @@ export function calcFamilyMemberTax(
   const totalDeductions = basicDeduction + member.socialInsurance + member.otherDeductions;
   // 課税所得は1,000円未満切り捨て
   const taxableIncome = Math.floor(Math.max(0, totalIncome - totalDeductions) / 1000) * 1000;
-  const incomeTax = Math.floor(calcIncomeTax(taxableIncome));
+  const incomeTax = calcIncomeTaxWithDetail(taxableIncome).total;
   const residentTax = Math.floor(taxableIncome * 0.1);
   const taxTotal = incomeTax + residentTax;
   const netIncome =
@@ -370,8 +374,9 @@ export function calcIndividual(
   // 課税所得は1,000円未満切り捨て
   const taxableIncome = Math.floor(Math.max(0, totalIncome - totalDeductions) / 1000) * 1000;
 
-  // 所得税（復興特別税込み）
-  const incomeTax = Math.floor(calcIncomeTax(taxableIncome));
+  // 所得税（復興特別税込み・100円未満切り捨て）
+  const incomeTaxDetail = calcIncomeTaxWithDetail(taxableIncome);
+  const incomeTax = incomeTaxDetail.total;
 
   // 住民税
   const residentTax = Math.floor(taxableIncome * 0.1);
@@ -422,6 +427,40 @@ export function calcIndividual(
     netIncome,
     family,
     combinedNetIncome,
+    taxDetail: {
+      salaryRevenue: ownerSalaryIncome,
+      salaryAfterDeduction,
+      pensionRevenue: ownerPensionIncome,
+      pensionAfterDeduction,
+      businessIncome: adjustedIncome,
+      otherIncome: ownerOtherIncome,
+      totalIncome,
+      socialInsuranceDeduction: ownerNationalInsurance,
+      otherDeductions: ownerOtherDeductions,
+      basicDeduction,
+      totalDeductions: basicDeduction + ownerNationalInsurance + ownerOtherDeductions,
+      taxableIncome,
+      incomeTaxRate: incomeTaxDetail.rate,
+      incomeTaxRateDeduction: incomeTaxDetail.rateDeduction,
+      incomeTaxBase: incomeTaxDetail.base,
+      incomeTaxRecovery: incomeTaxDetail.recovery,
+      incomeTax,
+      residentTax,
+      individualBusinessTax,
+    },
+    netIncomeDetail: {
+      businessIncome: input.businessIncome,
+      salaryRevenue: ownerSalaryIncome,
+      pensionRevenue: ownerPensionIncome,
+      otherIncome: ownerOtherIncome,
+      totalRevenue: input.businessIncome + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome,
+      incomeTax,
+      residentTax,
+      individualBusinessTax,
+      socialInsurance: ownerNationalInsurance,
+      totalDeductions: incomeTax + residentTax + individualBusinessTax + ownerNationalInsurance,
+      netIncome,
+    },
   };
 }
 
@@ -433,21 +472,54 @@ interface IndivTaxInput {
   totalIncome: number;
   socialInsurance: number;
   otherDeductions: number;
+  // 明細用の追加情報
+  salaryRevenue: number;
+  salaryAfterDeduction: number;
+  pensionRevenue: number;
+  pensionAfterDeduction: number;
+  businessIncome: number;
+  otherIncome: number;
 }
 
 interface IndivTaxResult {
   incomeTax: number;
   residentTax: number;
   taxTotal: number;
+  detail: TaxDetailBreakdown;
 }
 
-function calcIndivTax(p: IndivTaxInput): IndivTaxResult {
+function calcIndivTax(p: IndivTaxInput, individualBusinessTax: number = 0): IndivTaxResult {
   const basic = calcBasicDeduction(p.totalIncome);
+  const totalDeductions = basic + p.socialInsurance + p.otherDeductions;
   // 課税所得は1,000円未満切り捨て
-  const taxable = Math.floor(Math.max(0, p.totalIncome - basic - p.socialInsurance - p.otherDeductions) / 1000) * 1000;
-  const incomeTax = Math.floor(calcIncomeTax(taxable));
+  const taxable = Math.floor(Math.max(0, p.totalIncome - totalDeductions) / 1000) * 1000;
+  const taxDetail = calcIncomeTaxWithDetail(taxable);
+  const incomeTax = taxDetail.total;
   const residentTax = Math.floor(taxable * 0.1);
-  return { incomeTax, residentTax, taxTotal: incomeTax + residentTax };
+
+  const detail: TaxDetailBreakdown = {
+    salaryRevenue: p.salaryRevenue,
+    salaryAfterDeduction: p.salaryAfterDeduction,
+    pensionRevenue: p.pensionRevenue,
+    pensionAfterDeduction: p.pensionAfterDeduction,
+    businessIncome: p.businessIncome,
+    otherIncome: p.otherIncome,
+    totalIncome: p.totalIncome,
+    socialInsuranceDeduction: p.socialInsurance,
+    otherDeductions: p.otherDeductions,
+    basicDeduction: basic,
+    totalDeductions,
+    taxableIncome: taxable,
+    incomeTaxRate: taxDetail.rate,
+    incomeTaxRateDeduction: taxDetail.rateDeduction,
+    incomeTaxBase: taxDetail.base,
+    incomeTaxRecovery: taxDetail.recovery,
+    incomeTax,
+    residentTax,
+    individualBusinessTax,
+  };
+
+  return { incomeTax, residentTax, taxTotal: incomeTax + residentTax, detail };
 }
 
 interface CorpSideResult {
@@ -457,6 +529,7 @@ interface CorpSideResult {
   corporateRetained: number;
   employeeEmployerSI: number;
   medicalSocialInsuranceIncome: number;
+  corpTaxDetail: CorpTaxDetailBreakdown;
 }
 
 function calcCorpSide(
@@ -488,7 +561,19 @@ function calcCorpSide(
     medicalSocialInsuranceIncome
   );
   const corporateRetained = Math.max(0, corporateIncomeRaw - corporateTax - corporateBusinessTax);
-  return { corporateIncome, corporateTax, corporateBusinessTax, corporateRetained, employeeEmployerSI, medicalSocialInsuranceIncome };
+
+  const corpTaxDetail: CorpTaxDetailBreakdown = {
+    revenue,
+    salaries,
+    employerSocialInsurance: totalEmployerSI,
+    corporateIncome,
+    corporateTaxRate: corporateIncome <= 8000000 ? "800万以下" : "800万超",
+    corporateTax,
+    businessTax: corporateBusinessTax,
+    corporateRetained,
+  };
+
+  return { corporateIncome, corporateTax, corporateBusinessTax, corporateRetained, employeeEmployerSI, medicalSocialInsuranceIncome, corpTaxDetail };
 }
 
 // ============================================================
@@ -515,12 +600,19 @@ export function calcPlan1(
   const ownerSocialInsurance = si.owner;
   const employerSocialInsurance = si.employer;
 
+  const individualBusinessTax = calcIndividualBusinessTax(adjustedIndividual);
+
   const tax = calcIndivTax({
     totalIncome: individualTotalIncome,
     socialInsurance: ownerSocialInsurance,
     otherDeductions: ownerOtherDeductions,
-  });
-  const individualBusinessTax = calcIndividualBusinessTax(adjustedIndividual);
+    salaryRevenue: plan1MicroSalary + ownerSalaryIncome,
+    salaryAfterDeduction,
+    pensionRevenue: ownerPensionIncome,
+    pensionAfterDeduction,
+    businessIncome: adjustedIndividual,
+    otherIncome: ownerOtherIncome,
+  }, individualBusinessTax);
 
   const ownerNetIncome =
     remainingBusiness + plan1MicroSalary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome -
@@ -556,6 +648,21 @@ export function calcPlan1(
     ownerNetIncome,
     corporateNetIncome: corp.corporateRetained,
     combinedNetIncome: ownerNetIncome + corp.corporateRetained,
+    taxDetail: tax.detail,
+    corpTaxDetail: corp.corpTaxDetail,
+    netIncomeDetail: {
+      businessIncome: remainingBusiness,
+      salaryRevenue: plan1MicroSalary + ownerSalaryIncome,
+      pensionRevenue: ownerPensionIncome,
+      otherIncome: ownerOtherIncome,
+      totalRevenue: remainingBusiness + plan1MicroSalary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome,
+      incomeTax: tax.incomeTax,
+      residentTax: tax.residentTax,
+      individualBusinessTax,
+      socialInsurance: ownerSocialInsurance,
+      totalDeductions: tax.incomeTax + tax.residentTax + individualBusinessTax + ownerSocialInsurance,
+      netIncome: ownerNetIncome,
+    },
   };
 }
 
@@ -585,7 +692,13 @@ export function calcPlan2(
     totalIncome: individualTotalIncome,
     socialInsurance: ownerSocialInsurance,
     otherDeductions: ownerOtherDeductions,
-  });
+    salaryRevenue: plan2Salary + ownerSalaryIncome,
+    salaryAfterDeduction,
+    pensionRevenue: ownerPensionIncome,
+    pensionAfterDeduction,
+    businessIncome: 0,
+    otherIncome: ownerOtherIncome,
+  }, 0);
 
   const ownerNetIncome = plan2Salary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome -
     ownerSocialInsurance - tax.incomeTax - tax.residentTax;
@@ -620,6 +733,21 @@ export function calcPlan2(
     ownerNetIncome,
     corporateNetIncome: corp.corporateRetained,
     combinedNetIncome: ownerNetIncome + corp.corporateRetained,
+    taxDetail: tax.detail,
+    corpTaxDetail: corp.corpTaxDetail,
+    netIncomeDetail: {
+      businessIncome: 0,
+      salaryRevenue: plan2Salary + ownerSalaryIncome,
+      pensionRevenue: ownerPensionIncome,
+      otherIncome: ownerOtherIncome,
+      totalRevenue: plan2Salary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome,
+      incomeTax: tax.incomeTax,
+      residentTax: tax.residentTax,
+      individualBusinessTax: 0,
+      socialInsurance: ownerSocialInsurance,
+      totalDeductions: tax.incomeTax + tax.residentTax + ownerSocialInsurance,
+      netIncome: ownerNetIncome,
+    },
   };
 }
 
@@ -647,7 +775,7 @@ export function calcCorporate(
     0,
     ownerSalaryAfterDeduction - ownerBasicDeduction - ownerSocialInsurance - ownerOtherDeductions
   );
-  const ownerIncomeTax = Math.floor(calcIncomeTax(ownerTaxableIncome));
+  const ownerIncomeTax = calcIncomeTaxWithDetail(ownerTaxableIncome).total;
   const ownerResidentTax = Math.floor(ownerTaxableIncome * 0.1);
   const ownerNetIncome = plan2Salary - ownerSocialInsurance - ownerIncomeTax - ownerResidentTax;
   const totalNetIncome = ownerNetIncome + corporateRetained;

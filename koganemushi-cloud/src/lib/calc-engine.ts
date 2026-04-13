@@ -81,6 +81,32 @@ export function calcIncomeTax(taxableIncome: number): number {
   return calcIncomeTaxBase(taxableIncome) * 1.021;
 }
 
+/**
+ * 所得税の計算（内訳付き）
+ * 復興特別所得税（2.1%）込み。100円未満切り捨て。
+ */
+export function calcIncomeTaxWithDetail(taxableIncome: number): {
+  rate: number;
+  rateDeduction: number;
+  base: number;
+  recovery: number;
+  total: number;
+} {
+  let rate = 0;
+  let rateDeduction = 0;
+  for (const [limit, r, d] of INCOME_TAX_TABLE) {
+    if (taxableIncome <= limit) {
+      rate = r;
+      rateDeduction = d;
+      break;
+    }
+  }
+  const base = taxableIncome * rate - rateDeduction;
+  const recovery = base * 0.021;
+  const total = Math.floor((base + recovery) / 100) * 100;
+  return { rate, rateDeduction, base, recovery, total };
+}
+
 // ============================================================
 // 基礎控除
 // ============================================================

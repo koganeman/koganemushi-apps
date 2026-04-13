@@ -125,6 +125,9 @@ export interface IndividualResult {
   // 家族合計
   family: FamilyMemberResult[];  // 各家族メンバーの結果
   combinedNetIncome: number;     // 家族合算手取り
+  // 計算明細
+  taxDetail: TaxDetailBreakdown;
+  netIncomeDetail: NetIncomeDetailBreakdown;
 }
 
 /** プラン計算結果（PLAN1/PLAN2共通） */
@@ -157,6 +160,10 @@ export interface PlanResult {
   ownerNetIncome: number;              // 役員手取り
   corporateNetIncome: number;          // 法人手取り（内部留保）
   combinedNetIncome: number;           // 合算CF手取り（役員+法人）
+  // 計算明細
+  taxDetail: TaxDetailBreakdown;
+  corpTaxDetail: CorpTaxDetailBreakdown;
+  netIncomeDetail: NetIncomeDetailBreakdown;
 }
 
 /** 旧互換用: 法人の計算結果 */
@@ -175,6 +182,67 @@ export interface CorporateResult {
   ownerResidentTax: number;
   ownerNetIncome: number;
   totalNetIncome: number;
+}
+
+/** 個人所得税・住民税の計算明細 */
+export interface TaxDetailBreakdown {
+  // 収入・所得金額
+  salaryRevenue: number;              // 給与収入
+  salaryAfterDeduction: number;       // 給与所得金額
+  pensionRevenue: number;             // 年金収入
+  pensionAfterDeduction: number;      // 年金雑所得
+  businessIncome: number;             // 事業所得（青色控除後）
+  otherIncome: number;                // 他の所得金額
+  totalIncome: number;                // 所得金額（合計）
+  // 所得控除
+  socialInsuranceDeduction: number;   // 社会保険料控除額
+  otherDeductions: number;            // その他所得控除
+  basicDeduction: number;             // 基礎控除
+  totalDeductions: number;            // 所得控除合計
+  // 税金計算
+  taxableIncome: number;              // 課税所得金額
+  incomeTaxRate: number;              // 適用税率
+  incomeTaxRateDeduction: number;     // 税率控除額
+  incomeTaxBase: number;              // 所得税額（基本）
+  incomeTaxRecovery: number;          // 復興特別所得税
+  incomeTax: number;                  // 所得税（100円未満切り捨て）
+  residentTax: number;                // 住民税
+  // 個人事業税
+  individualBusinessTax: number;      // 個人事業税
+}
+
+/** 法人税の計算明細 */
+export interface CorpTaxDetailBreakdown {
+  // 法人所得
+  revenue: number;                    // 法人売上
+  salaries: number;                   // 役員報酬＋配偶者給与
+  employerSocialInsurance: number;    // 社保会社負担（役員＋従業員）
+  corporateIncome: number;            // 法人所得（1,000円未満切り捨て後）
+  // 法人税
+  corporateTaxRate: string;           // 適用区分（"800万以下" or "800万超"）
+  corporateTax: number;               // 法人税額
+  // 法人事業税
+  businessTax: number;                // 法人事業税
+  // 内部留保
+  corporateRetained: number;          // 法人内部留保
+}
+
+/** 手取り額の計算明細 */
+export interface NetIncomeDetailBreakdown {
+  // 収入合計
+  businessIncome: number;             // 事業所得（事業収入そのもの、青色控除前）
+  salaryRevenue: number;              // 給与収入
+  pensionRevenue: number;             // 年金収入
+  otherIncome: number;                // 他の所得
+  totalRevenue: number;               // 収入合計
+  // 控除項目
+  incomeTax: number;                  // 所得税
+  residentTax: number;                // 住民税
+  individualBusinessTax: number;      // 個人事業税
+  socialInsurance: number;            // 社会保険料
+  totalDeductions: number;            // 控除合計
+  // 手取り
+  netIncome: number;                  // 手取り額
 }
 
 /** シミュレーション全体の計算結果 */
