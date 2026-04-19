@@ -335,13 +335,13 @@ function NetIncomeDetailTable({
 /* ── Main component ── */
 
 export function CalcDetailSheet() {
-  const { input, rates } = useHojinnariStore(
-    useShallow((s) => ({ input: s.input, rates: s.rates }))
+  const { input, rates, taxYear } = useHojinnariStore(
+    useShallow((s) => ({ input: s.input, rates: s.rates, taxYear: s.taxYear }))
   );
 
-  const individual = calcIndividual(input);
-  const plan1 = calcPlan1(input, rates);
-  const plan2 = calcPlan2(input, rates);
+  const individual = calcIndividual(input, taxYear);
+  const plan1 = calcPlan1(input, rates, taxYear);
+  const plan2 = calcPlan2(input, rates, taxYear);
 
   return (
     <div className="p-4 space-y-6">

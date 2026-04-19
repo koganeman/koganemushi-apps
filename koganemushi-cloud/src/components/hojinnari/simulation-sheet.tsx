@@ -149,17 +149,18 @@ export function SimulationSheet() {
     showChild2: input.childCount >= 2,
   };
 
-  const ownerResult = calcIndividual(input);
+  const taxYear = useHojinnariStore((s) => s.taxYear);
+  const ownerResult = calcIndividual(input, taxYear);
   // ゼロ値フォールバックで ?? を JSX 内で使わないようにする
   const isChildcare = input.isChildcareHousehold;
   const sr = input.hasSpouse
-    ? calcFamilyMemberTax(input.spouse, isChildcare)
+    ? calcFamilyMemberTax(input.spouse, isChildcare, taxYear)
     : ZERO_MEMBER;
   const cr1 = input.childCount >= 1
-    ? calcFamilyMemberTax(input.children[0], isChildcare)
+    ? calcFamilyMemberTax(input.children[0], isChildcare, taxYear)
     : ZERO_MEMBER;
   const cr2 = input.childCount >= 2
-    ? calcFamilyMemberTax(input.children[1], isChildcare)
+    ? calcFamilyMemberTax(input.children[1], isChildcare, taxYear)
     : ZERO_MEMBER;
 
   const colCount =

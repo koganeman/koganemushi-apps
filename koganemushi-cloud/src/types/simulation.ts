@@ -6,7 +6,9 @@ export interface RateSettings {
   nursingCareRate: number;
   /** 厚生年金保険料率 (例: 0.183) */
   pensionRate: number;
-  /** 子ども・子育て拠出金率 (例: 0.0036) */
+  /** 子ども・子育て支援金率（労使折半、例: 0.0023） */
+  childcareSupportRate: number;
+  /** 子ども・子育て拠出金率（会社のみ、例: 0.0036） */
   childcareContributionRate: number;
   /** 健保・介護 標準賞与額上限（年間・円） */
   healthBonusAnnualCap: number;

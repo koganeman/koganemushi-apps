@@ -10,6 +10,7 @@ export const defaultRates: RateSettings = {
   healthInsuranceRate: 0.0991,
   nursingCareRate: 0.0159,
   pensionRate: 0.183,
+  childcareSupportRate: 0.0023,
   childcareContributionRate: 0.0036,
   healthBonusAnnualCap: 5730000,
   pensionBonusPerPaymentCap: 1500000,

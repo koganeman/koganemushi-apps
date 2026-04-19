@@ -4,6 +4,7 @@ import type {
   CorporateTaxParams,
   EffectiveTaxRates,
 } from "@/types/simulation";
+import type { TaxYear } from "./tax-tables";
 import { calcExecutive, calcCorporateTaxTotal } from "./calc-engine";
 
 export interface OptimizeContext {
@@ -14,6 +15,7 @@ export interface OptimizeContext {
   combineOtherSalaryForInsurance: boolean;
   corporateTaxParams: CorporateTaxParams;
   effectiveTaxRates: EffectiveTaxRates;
+  taxYear?: TaxYear;
 }
 
 /**
@@ -44,6 +46,7 @@ function calcNetIncome(
     isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
+    taxYear: ctx.taxYear,
   }).netIncome;
 }
 
@@ -53,6 +56,7 @@ function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): num
     isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
+    taxYear: ctx.taxYear,
   });
   const execPay = exec.regularSalary +
     exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3;

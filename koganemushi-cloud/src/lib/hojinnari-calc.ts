@@ -17,6 +17,7 @@ import {
   calcBasicDeduction,
   calcSalaryIncome,
 } from "./calc-engine";
+import type { TaxYear } from "./tax-tables";
 import {
   HEALTH_INSURANCE_TABLE,
   PENSION_TABLE,
@@ -308,15 +309,16 @@ export function calcPensionIncome(
 
 export function calcFamilyMemberTax(
   member: FamilyMember,
-  isChildcareHousehold: boolean
+  isChildcareHousehold: boolean,
+  taxYear: TaxYear = "R7"
 ): FamilyMemberResult {
-  const salaryAfterDeduction = calcSalaryIncome(member.salaryIncome, isChildcareHousehold);
+  const salaryAfterDeduction = calcSalaryIncome(member.salaryIncome, isChildcareHousehold, taxYear);
   const otherIncome = member.otherIncome;
   const otherTotalIncome = salaryAfterDeduction + otherIncome;
   const pensionAfterDeduction = calcPensionIncome(member.pensionIncome, member.age, otherTotalIncome);
 
   const totalIncome = salaryAfterDeduction + pensionAfterDeduction + otherIncome;
-  const basicDeduction = calcBasicDeduction(totalIncome);
+  const basicDeduction = calcBasicDeduction(totalIncome, taxYear);
   const totalDeductions = basicDeduction + member.socialInsurance + member.otherDeductions;
   // 課税所得は1,000円未満切り捨て
   const taxableIncome = Math.floor(Math.max(0, totalIncome - totalDeductions) / 1000) * 1000;
@@ -352,6 +354,7 @@ export function calcFamilyMemberTax(
 
 export function calcIndividual(
   input: HojinnariInput,
+  taxYear: TaxYear = "R7"
 ): IndividualResult {
   const { businessIncome, blueDeduction, ownerSalaryIncome, ownerPensionIncome, ownerOtherIncome, ownerNationalInsurance, ownerOtherDeductions, isChildcareHousehold } = input;
 
@@ -359,7 +362,7 @@ export function calcIndividual(
   const adjustedIncome = Math.max(0, businessIncome - blueDeduction);
 
   // 給与所得控除
-  const salaryAfterDeduction = calcSalaryIncome(ownerSalaryIncome, isChildcareHousehold);
+  const salaryAfterDeduction = calcSalaryIncome(ownerSalaryIncome, isChildcareHousehold, taxYear);
 
   // 年金雑所得（公的年金等控除後）
   const ownerOtherTotalIncome = adjustedIncome + salaryAfterDeduction + ownerOtherIncome;
@@ -369,7 +372,7 @@ export function calcIndividual(
   const totalIncome = adjustedIncome + salaryAfterDeduction + pensionAfterDeduction + ownerOtherIncome;
 
   // 基礎控除
-  const basicDeduction = calcBasicDeduction(totalIncome);
+  const basicDeduction = calcBasicDeduction(totalIncome, taxYear);
   const totalDeductions = basicDeduction + ownerNationalInsurance + ownerOtherDeductions;
   // 課税所得は1,000円未満切り捨て
   const taxableIncome = Math.floor(Math.max(0, totalIncome - totalDeductions) / 1000) * 1000;
@@ -399,10 +402,10 @@ export function calcIndividual(
   // 家族計算
   const family: ReturnType<typeof calcFamilyMemberTax>[] = [];
   if (input.hasSpouse) {
-    family.push(calcFamilyMemberTax(input.spouse, isChildcareHousehold));
+    family.push(calcFamilyMemberTax(input.spouse, isChildcareHousehold, taxYear));
   }
   for (let i = 0; i < input.childCount; i++) {
-    family.push(calcFamilyMemberTax(input.children[i], isChildcareHousehold));
+    family.push(calcFamilyMemberTax(input.children[i], isChildcareHousehold, taxYear));
   }
 
   const familyNetIncome = family.reduce((sum, m) => sum + m.netIncome, 0);
@@ -488,8 +491,8 @@ interface IndivTaxResult {
   detail: TaxDetailBreakdown;
 }
 
-function calcIndivTax(p: IndivTaxInput, individualBusinessTax: number = 0): IndivTaxResult {
-  const basic = calcBasicDeduction(p.totalIncome);
+function calcIndivTax(p: IndivTaxInput, individualBusinessTax: number = 0, taxYear: TaxYear = "R7"): IndivTaxResult {
+  const basic = calcBasicDeduction(p.totalIncome, taxYear);
   const totalDeductions = basic + p.socialInsurance + p.otherDeductions;
   // 課税所得は1,000円未満切り捨て
   const taxable = Math.floor(Math.max(0, p.totalIncome - totalDeductions) / 1000) * 1000;
@@ -582,7 +585,8 @@ function calcCorpSide(
 
 export function calcPlan1(
   input: HojinnariInput,
-  rates: HojinnariRates
+  rates: HojinnariRates,
+  taxYear: TaxYear = "R7"
 ): PlanResult {
   const {
     businessIncome, blueDeduction, ownerAge, ownerSalaryIncome, ownerPensionIncome, ownerOtherIncome, ownerOtherDeductions,
@@ -591,7 +595,7 @@ export function calcPlan1(
 
   const remainingBusiness = Math.max(0, businessIncome - plan1MicroRevenue);
   const adjustedIndividual = Math.max(0, remainingBusiness - blueDeduction);
-  const salaryAfterDeduction = calcSalaryIncome(plan1MicroSalary + ownerSalaryIncome, isChildcareHousehold);
+  const salaryAfterDeduction = calcSalaryIncome(plan1MicroSalary + ownerSalaryIncome, isChildcareHousehold, taxYear);
   const otherTotalIncomeForPension = adjustedIndividual + salaryAfterDeduction + ownerOtherIncome;
   const pensionAfterDeduction = calcPensionIncome(ownerPensionIncome, ownerAge, otherTotalIncomeForPension);
   const individualTotalIncome = adjustedIndividual + salaryAfterDeduction + pensionAfterDeduction + ownerOtherIncome;
@@ -613,7 +617,7 @@ export function calcPlan1(
     pensionAfterDeduction,
     businessIncome: adjustedIndividual,
     otherIncome: ownerOtherIncome,
-  }, individualBusinessTax);
+  }, individualBusinessTax, taxYear);
 
   const ownerNetIncome =
     remainingBusiness + plan1MicroSalary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome -
@@ -673,14 +677,15 @@ export function calcPlan1(
 
 export function calcPlan2(
   input: HojinnariInput,
-  rates: HojinnariRates
+  rates: HojinnariRates,
+  taxYear: TaxYear = "R7"
 ): PlanResult {
   const {
     businessIncome, ownerAge, ownerSalaryIncome, ownerPensionIncome, ownerOtherIncome, ownerOtherDeductions,
     isChildcareHousehold, plan2Salary, plan2SpouseSalary, isNonExecutive,
   } = input;
 
-  const salaryAfterDeduction = calcSalaryIncome(plan2Salary + ownerSalaryIncome, isChildcareHousehold);
+  const salaryAfterDeduction = calcSalaryIncome(plan2Salary + ownerSalaryIncome, isChildcareHousehold, taxYear);
   const otherTotalIncomeForPension = salaryAfterDeduction + ownerOtherIncome;
   const pensionAfterDeduction = calcPensionIncome(ownerPensionIncome, ownerAge, otherTotalIncomeForPension);
   const individualTotalIncome = salaryAfterDeduction + pensionAfterDeduction + ownerOtherIncome;
@@ -702,7 +707,7 @@ export function calcPlan2(
     pensionAfterDeduction,
     businessIncome: 0,
     otherIncome: ownerOtherIncome,
-  }, 0);
+  }, 0, taxYear);
 
   const ownerNetIncome = plan2Salary + ownerSalaryIncome + ownerPensionIncome + ownerOtherIncome -
     ownerSocialInsurance - tax.incomeTax - tax.residentTax;
@@ -761,7 +766,8 @@ export function calcPlan2(
 
 export function calcCorporate(
   input: HojinnariInput,
-  rates: HojinnariRates
+  rates: HojinnariRates,
+  taxYear: TaxYear = "R7"
 ): CorporateResult {
   const {
     businessIncome, plan2Salary, plan2SpouseSalary, ownerAge,
@@ -772,9 +778,9 @@ export function calcCorporate(
   const corporateTax = calcCorporateTaxHojinnari(corporateIncome, rates);
   const businessTax = calcBusinessTax(corporateIncome, rates);
   const corporateRetained = corporateIncome - corporateTax - businessTax;
-  const ownerSalaryAfterDeduction = calcSalaryIncome(plan2Salary, isChildcareHousehold);
+  const ownerSalaryAfterDeduction = calcSalaryIncome(plan2Salary, isChildcareHousehold, taxYear);
   const ownerSocialInsurance = calcSocialInsurancePair(plan2Salary, ownerAge, rates).owner;
-  const ownerBasicDeduction = calcBasicDeduction(ownerSalaryAfterDeduction);
+  const ownerBasicDeduction = calcBasicDeduction(ownerSalaryAfterDeduction, taxYear);
   const ownerTaxableIncome = Math.max(
     0,
     ownerSalaryAfterDeduction - ownerBasicDeduction - ownerSocialInsurance - ownerOtherDeductions
@@ -808,12 +814,13 @@ export function calcCorporate(
 
 export function calcHojinnari(
   input: HojinnariInput,
-  rates: HojinnariRates
+  rates: HojinnariRates,
+  taxYear: TaxYear = "R7"
 ): HojinnariResult {
-  const individual = calcIndividual(input);
-  const plan1 = calcPlan1(input, rates);
-  const plan2 = calcPlan2(input, rates);
-  const corporate = calcCorporate(input, rates);
+  const individual = calcIndividual(input, taxYear);
+  const plan1 = calcPlan1(input, rates, taxYear);
+  const plan2 = calcPlan2(input, rates, taxYear);
+  const corporate = calcCorporate(input, rates, taxYear);
   const difference = plan2.combinedNetIncome - individual.netIncome;
 
   return { individual, plan1, plan2, corporate, difference };
@@ -833,14 +840,15 @@ export interface OptimizationPoint {
 export function optimizePlan2Salary(
   input: HojinnariInput,
   rates: HojinnariRates,
-  step = 1000000
+  step = 1000000,
+  taxYear: TaxYear = "R7"
 ): OptimizationPoint[] {
   const results: OptimizationPoint[] = [];
   const max = input.businessIncome;
 
   for (let salary = 0; salary <= max; salary += step) {
     const modified = { ...input, plan2Salary: salary };
-    const plan2 = calcPlan2(modified, rates);
+    const plan2 = calcPlan2(modified, rates, taxYear);
     results.push({
       salary,
       totalNetIncome: plan2.combinedNetIncome,
@@ -854,9 +862,10 @@ export function optimizePlan2Salary(
 export function findOptimalPlan2Salary(
   input: HojinnariInput,
   rates: HojinnariRates,
-  step = 1000000
+  step = 1000000,
+  taxYear: TaxYear = "R7"
 ): number {
-  const points = optimizePlan2Salary(input, rates, step);
+  const points = optimizePlan2Salary(input, rates, step, taxYear);
   if (points.length === 0) { return 0; }
   return points.reduce((best, p) =>
     p.totalNetIncome > best.totalNetIncome ? p : best
@@ -878,14 +887,15 @@ export interface MicroOptPoint {
 export function optimizePlan1(
   input: HojinnariInput,
   rates: HojinnariRates,
-  step = 1000000
+  step = 1000000,
+  taxYear: TaxYear = "R7"
 ): MicroOptPoint[] {
   const results: MicroOptPoint[] = [];
   const maxRevenue = input.businessIncome;
 
   for (let microRevenue = 0; microRevenue <= maxRevenue; microRevenue += step) {
     const modified = { ...input, plan1MicroRevenue: microRevenue };
-    const plan1 = calcPlan1(modified, rates);
+    const plan1 = calcPlan1(modified, rates, taxYear);
     results.push({
       microRevenue,
       microSalary: input.plan1MicroSalary,
@@ -902,14 +912,16 @@ export { calcPlan2 as calcCorporateNew };
 export function optimizeCorporateSalary(
   input: HojinnariInput,
   rates: HojinnariRates,
-  step = 1000000
+  step = 1000000,
+  taxYear: TaxYear = "R7"
 ): OptimizationPoint[] {
-  return optimizePlan2Salary(input, rates, step);
+  return optimizePlan2Salary(input, rates, step, taxYear);
 }
 export function findOptimalSalary(
   input: HojinnariInput,
   rates: HojinnariRates,
-  step = 1000000
+  step = 1000000,
+  taxYear: TaxYear = "R7"
 ): number {
-  return findOptimalPlan2Salary(input, rates, step);
+  return findOptimalPlan2Salary(input, rates, step, taxYear);
 }

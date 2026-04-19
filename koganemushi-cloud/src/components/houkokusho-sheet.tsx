@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import type { CorporateTaxParams, ExecutiveInput, ExecutiveResult } from "@/types/simulation";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useShallow } from "zustand/react/shallow";
@@ -138,6 +139,8 @@ const CORPORATE_ROWS: CorporateRow[] = [
 // 計画ブロック1つを描画するコンポーネント
 interface PlanBlockProps {
   label: string;
+  planLabel: string;
+  onPlanLabelChange: (value: string) => void;
   corporateTaxParams: CorporateTaxParams;
   currentExecutives: ExecutiveInput[];
   currentTotals: ExecutiveResult;
@@ -149,6 +152,8 @@ interface PlanBlockProps {
 
 function PlanBlock({
   label,
+  planLabel,
+  onPlanLabelChange,
   corporateTaxParams,
   currentExecutives,
   currentTotals,
@@ -189,8 +194,15 @@ function PlanBlock({
   return (
     <div className="flex-1 min-w-[480px]">
       {/* PLANヘッダー */}
-      <div className="bg-yellow-50 border border-yellow-400 px-3 py-1 mb-2 text-sm font-bold">
-        {label}
+      <div className="bg-yellow-50 border border-yellow-400 px-3 py-1 mb-2 text-sm font-bold flex items-center gap-1">
+        <span>{label}</span>
+        <input
+          type="text"
+          value={planLabel}
+          onChange={(e) => onPlanLabelChange(e.target.value)}
+          placeholder="タイトルを入力"
+          className="flex-1 bg-transparent border-none outline-none text-sm font-bold placeholder:text-gray-400 placeholder:font-normal"
+        />
       </div>
       <div className="text-xs font-bold mb-1 pl-1">役員報酬の変更：</div>
 
@@ -312,12 +324,82 @@ function PlanBlock({
           </tr>
         </tbody>
       </table>
+
+      {/* コメント */}
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 text-[11px] space-y-1 mt-2">
+        <p>
+          役員報酬変更により、
+          <span className="font-bold">個人手取り</span>は現状より
+          <span className={`font-bold ${comparisonTotals.netIncome - currentTotals.netIncome >= 0 ? "text-green-700" : "text-red-600"}`}>
+            {" "}{comparisonTotals.netIncome - currentTotals.netIncome >= 0 ? "+" : ""}
+            {Math.round(comparisonTotals.netIncome - currentTotals.netIncome).toLocaleString("ja-JP")}
+          </span>
+          {comparisonTotals.netIncome - currentTotals.netIncome >= 0 ? "（増加）" : "（減少）"}、
+          <span className="font-bold">合算CF</span>は現状より
+          <span className={`font-bold ${cfDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+            {" "}{cfDiff >= 0 ? "+" : ""}{Math.round(cfDiff).toLocaleString("ja-JP")}
+          </span>
+          {cfDiff >= 0 ? "（増加）" : "（減少）"}
+          となります。
+        </p>
+        {/* 内訳コメント */}
+        <p>
+          {(() => {
+            const parts: string[] = [];
+            if (corpTaxChange !== 0) {
+              parts.push(`法人税は${Math.abs(Math.round(corpTaxChange)).toLocaleString("ja-JP")}円${corpTaxChange > 0 ? "増加" : "減少"}`);
+            }
+            if (taxIncrease !== 0) {
+              parts.push(`個人所得税等は${Math.abs(Math.round(taxIncrease)).toLocaleString("ja-JP")}円${taxIncrease > 0 ? "増加" : "減少"}`);
+            }
+            if (socialIncrease !== 0) {
+              parts.push(`社会保険料（労使計）は${Math.abs(Math.round(socialIncrease)).toLocaleString("ja-JP")}円${socialIncrease > 0 ? "増加" : "減少"}`);
+            }
+            if (parts.length === 0) return "税金・社会保険料に変動はありません。";
+            return parts.join("、") + "します。";
+          })()}
+        </p>
+        {(() => {
+          const personalDiff = comparisonTotals.netIncome - currentTotals.netIncome;
+          if (personalDiff > 0 && cfDiff < 0) {
+            return (
+              <p>
+                個人の手取りは増加しますが、法人内部留保が減少するため合算CFは悪化しています。
+                役員報酬を抑えることで合算CFを改善できる可能性があります。
+              </p>
+            );
+          }
+          if (personalDiff < 0 && cfDiff > 0) {
+            return (
+              <p>
+                個人の手取りは減少しますが、法人内部留保が増加するため合算CFは改善しています。
+                役員報酬を増やすと個人手取りは改善しますが、合算CFは悪化します。
+              </p>
+            );
+          }
+          if (personalDiff >= 0 && cfDiff >= 0) {
+            return (
+              <p className="text-green-700 font-bold">
+                個人手取り・合算CFともに改善しており、有利な報酬設定です。
+              </p>
+            );
+          }
+          if (personalDiff < 0 && cfDiff < 0) {
+            return (
+              <p className="text-red-600">
+                個人手取り・合算CFともに減少しています。報酬設定の見直しをお勧めします。
+              </p>
+            );
+          }
+          return null;
+        })()}
+      </div>
     </div>
   );
 }
 
 export function HoukokushoSheet() {
-  const { corporateTaxParams, currentExecutives, comparisonExecutives, plan2Executives, copyToPlan2 } =
+  const { corporateTaxParams, currentExecutives, comparisonExecutives, plan2Executives, copyToPlan2, plan1Label, plan2Label, setPlan1Label, setPlan2Label } =
     useSimulationStore(
       useShallow((s) => ({
         corporateTaxParams: s.corporateTaxParams,
@@ -325,6 +407,10 @@ export function HoukokushoSheet() {
         comparisonExecutives: s.comparisonExecutives,
         plan2Executives: s.plan2Executives,
         copyToPlan2: s.copyToPlan2,
+        plan1Label: s.plan1Label,
+        plan2Label: s.plan2Label,
+        setPlan1Label: s.setPlan1Label,
+        setPlan2Label: s.setPlan2Label,
       }))
     );
 
@@ -332,17 +418,50 @@ export function HoukokushoSheet() {
   const comparison = useComparisonResults();
   const plan2 = usePlan2Results();
 
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useCallback(() => {
+    const el = printRef.current;
+    if (!el) return;
+    // 印刷用コンテナを作成し、内容を複製
+    const container = document.createElement("div");
+    container.id = "print-container";
+    container.classList.add("print-single-page");
+    const content = el.cloneNode(true) as HTMLElement;
+    content.classList.add("print-content");
+    // no-print要素を除去
+    content.querySelectorAll(".no-print").forEach((n) => n.remove());
+    // input要素をテキストに変換
+    content.querySelectorAll("input").forEach((input) => {
+      const span = document.createElement("span");
+      span.textContent = input.value;
+      span.style.fontWeight = "bold";
+      input.replaceWith(span);
+    });
+    container.appendChild(content);
+    document.body.appendChild(container);
+    document.body.classList.add("printing");
+    window.print();
+    document.body.classList.remove("printing");
+    document.body.removeChild(container);
+  }, []);
+
   return (
-    <div className="p-6">
+    <div className="p-6" ref={printRef}>
       {/* ヘッダー */}
       <div className="flex items-start justify-between mb-4">
         <h2 className="text-base font-bold">役員報酬・配当シミュレーション</h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 no-print">
           <button
             onClick={copyToPlan2}
             className="text-xs border border-blue-400 text-blue-700 rounded px-3 py-1 hover:bg-blue-50 transition-colors"
           >
             PLAN１をPLAN２にコピー
+          </button>
+          <button
+            onClick={handlePrint}
+            className="text-xs border border-green-500 text-green-700 rounded px-3 py-1 hover:bg-green-50 transition-colors"
+          >
+            PDF出力
           </button>
           <div className="text-xs text-gray-600 border border-gray-300 rounded px-2 py-1">
             ● 円単位
@@ -354,6 +473,8 @@ export function HoukokushoSheet() {
       <div className="flex gap-6 flex-wrap">
         <PlanBlock
           label="PLAN１："
+          planLabel={plan1Label}
+          onPlanLabelChange={setPlan1Label}
           corporateTaxParams={corporateTaxParams}
           currentExecutives={currentExecutives}
           currentTotals={current.totals}
@@ -364,6 +485,8 @@ export function HoukokushoSheet() {
         />
         <PlanBlock
           label="PLAN２："
+          planLabel={plan2Label}
+          onPlanLabelChange={setPlan2Label}
           corporateTaxParams={corporateTaxParams}
           currentExecutives={currentExecutives}
           currentTotals={current.totals}

@@ -6,6 +6,7 @@ import type {
   EffectiveTaxRates,
   ExecutiveInput,
 } from "@/types/simulation";
+import type { TaxYear } from "@/lib/tax-tables";
 import { createDefaultSimulationData, createEmptyExecutive } from "@/lib/defaults";
 
 export type Tab = "simulation" | "hojinzei" | "houkokusho" | "saitekika";
@@ -21,6 +22,9 @@ interface SimulationState {
   governmentHealthInsurance: boolean;
   combineOtherSalaryForInsurance: boolean;
   activeTab: Tab;
+  taxYear: TaxYear;
+  plan1Label: string;
+  plan2Label: string;
 
   // Actions
   setRates: (rates: RateSettings) => void;
@@ -34,6 +38,9 @@ interface SimulationState {
   setGovernmentHealthInsurance: (checked: boolean) => void;
   setCombineOtherSalaryForInsurance: (checked: boolean) => void;
   setActiveTab: (tab: Tab) => void;
+  setTaxYear: (taxYear: TaxYear) => void;
+  setPlan1Label: (label: string) => void;
+  setPlan2Label: (label: string) => void;
 }
 
 const defaults = createDefaultSimulationData();
@@ -51,6 +58,9 @@ export const useSimulationStore = create<SimulationState>()(
   governmentHealthInsurance: defaults.governmentHealthInsurance,
   combineOtherSalaryForInsurance: defaults.combineOtherSalaryForInsurance,
   activeTab: "simulation",
+  taxYear: "R8" as TaxYear,
+  plan1Label: "",
+  plan2Label: "",
 
   // Actions
   setRates: (rates) => set({ rates }),
@@ -102,6 +112,12 @@ export const useSimulationStore = create<SimulationState>()(
     set({ combineOtherSalaryForInsurance }),
 
   setActiveTab: (activeTab) => set({ activeTab }),
+
+  setTaxYear: (taxYear) => set({ taxYear }),
+
+  setPlan1Label: (plan1Label) => set({ plan1Label }),
+
+  setPlan2Label: (plan2Label) => set({ plan2Label }),
     }),
     {
       name: "koganemushi-simulation",
@@ -114,6 +130,9 @@ export const useSimulationStore = create<SimulationState>()(
         plan2Executives: state.plan2Executives,
         governmentHealthInsurance: state.governmentHealthInsurance,
         combineOtherSalaryForInsurance: state.combineOtherSalaryForInsurance,
+        taxYear: state.taxYear,
+        plan1Label: state.plan1Label,
+        plan2Label: state.plan2Label,
       }),
     }
   )

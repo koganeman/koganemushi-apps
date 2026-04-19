@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import { calcIndividual, calcPlan1, calcPlan2 } from "@/lib/hojinnari-calc";
@@ -231,6 +232,100 @@ function PlanTable({
   );
 }
 
+function PlanComment({
+  label,
+  individual,
+  planResult,
+}: {
+  label: string;
+  individual: ReturnType<typeof calcIndividual>;
+  planResult: ReturnType<typeof calcPlan1>;
+}) {
+  const curNet = individual.netIncome;
+  const personalDiff = planResult.ownerNetIncome - curNet;
+  const combinedDiff = planResult.combinedNetIncome - curNet;
+  const corporateRetained = planResult.corporateRetained;
+
+  // 内訳: 法人税・個人所得税・社会保険料の増減
+  const curPersonalTax = individual.taxTotal;
+  const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
+  const personalTaxDiff = aftPersonalTax - curPersonalTax;
+
+  const corpTaxDiff = planResult.corporateTax + planResult.corporateBusinessTax;
+
+  const curSocialTotal = individual.nationalInsurance;
+  const aftSocialTotal = planResult.ownerSocialInsurance + planResult.employerSocialInsurance;
+  const socialDiff = aftSocialTotal - curSocialTotal;
+
+  const businessTaxDiff = planResult.individualBusinessTax - individual.individualBusinessTax;
+
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded p-3 text-[11px] space-y-1 mt-2">
+      <p>
+        {label}により、
+        <span className="font-bold">個人手取り</span>は現状より
+        <span className={`font-bold ${personalDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+          {" "}{personalDiff >= 0 ? "+" : ""}{formatYen(personalDiff)}
+        </span>
+        {personalDiff >= 0 ? "（増加）" : "（減少）"}、
+        <span className="font-bold">合算CF手取り</span>は現状より
+        <span className={`font-bold ${combinedDiff >= 0 ? "text-green-700" : "text-red-600"}`}>
+          {" "}{combinedDiff >= 0 ? "+" : ""}{formatYen(combinedDiff)}
+        </span>
+        {combinedDiff >= 0 ? "（増加）" : "（減少）"}
+        となります。
+      </p>
+      <p>
+        {(() => {
+          const parts: string[] = [];
+          if (corpTaxDiff !== 0) {
+            parts.push(`法人税等は${formatYen(Math.abs(corpTaxDiff))}円${corpTaxDiff > 0 ? "増加" : "減少"}`);
+          }
+          if (personalTaxDiff !== 0) {
+            parts.push(`個人所得税等は${formatYen(Math.abs(personalTaxDiff))}円${personalTaxDiff > 0 ? "増加" : "減少"}`);
+          }
+          if (businessTaxDiff !== 0) {
+            parts.push(`事業税は${formatYen(Math.abs(businessTaxDiff))}円${businessTaxDiff > 0 ? "増加" : "減少"}`);
+          }
+          if (socialDiff !== 0) {
+            parts.push(`社会保険料（労使計）は${formatYen(Math.abs(socialDiff))}円${socialDiff > 0 ? "増加" : "減少"}`);
+          }
+          if (parts.length === 0) return "税金・社会保険料に変動はありません。";
+          return parts.join("、") + "します。";
+        })()}
+      </p>
+      {personalDiff > 0 && combinedDiff < 0 && (
+        <p>
+          個人の手取りは増加しますが、法人内部留保が
+          <span className={`font-bold ${corporateRetained >= 0 ? "" : "text-red-600"}`}>
+            {" "}{formatYen(corporateRetained)}
+          </span>
+          となるため、法人と個人を合わせた合算CFは減少します。
+          役員報酬を下げることで合算CFを改善できる可能性があります。
+        </p>
+      )}
+      {personalDiff < 0 && combinedDiff > 0 && (
+        <p>
+          個人の手取りは減少しますが、法人内部留保が
+          <span className="font-bold"> {formatYen(corporateRetained)} </span>
+          となるため、法人と個人を合わせた合算CFは改善します。
+          役員報酬を上げることで個人手取りを増やせますが、合算CFは悪化します。
+        </p>
+      )}
+      {personalDiff >= 0 && combinedDiff >= 0 && (
+        <p className="text-green-700 font-bold">
+          個人手取り・合算CFともに改善しており、法人成りのメリットがあります。
+        </p>
+      )}
+      {personalDiff < 0 && combinedDiff < 0 && (
+        <p className="text-red-600">
+          個人手取り・合算CFともに減少しています。役員報酬の見直しや決算対策の検討をお勧めします。
+        </p>
+      )}
+    </div>
+  );
+}
+
 function IncreaseChart({
   label,
   individual,
@@ -280,44 +375,33 @@ function IncreaseChart({
   );
 }
 
-function PlanBlock({
+function SubPlanBlock({
   title,
+  subTitle,
   individual,
-  plan1Result,
-  plan2Result,
+  planResult,
 }: {
   title: string;
+  subTitle: string;
   individual: ReturnType<typeof calcIndividual>;
-  plan1Result: ReturnType<typeof calcPlan1>;
-  plan2Result: ReturnType<typeof calcPlan2>;
+  planResult: ReturnType<typeof calcPlan1>;
 }) {
   return (
     <div className="flex-1 min-w-[420px]">
       <div className="bg-yellow-50 border border-yellow-400 px-3 py-1 mb-2 text-sm font-bold">
-        {title}
+        {title} — {subTitle}
       </div>
-      <div className="space-y-4">
-        <div>
-          <div className="text-xs font-bold text-gray-600 mb-1 pl-1">完全法人成り：</div>
-          <PlanTable title="" individual={individual} planResult={plan2Result} />
-          <div className="mt-2">
-            <IncreaseChart label="完全法人成り" individual={individual} planResult={plan2Result} />
-          </div>
-        </div>
-        <div>
-          <div className="text-xs font-bold text-gray-600 mb-1 pl-1">マイクロ法人成り：</div>
-          <PlanTable title="" individual={individual} planResult={plan1Result} />
-          <div className="mt-2">
-            <IncreaseChart label="マイクロ法人成り" individual={individual} planResult={plan1Result} />
-          </div>
-        </div>
+      <PlanTable title="" individual={individual} planResult={planResult} />
+      <PlanComment label={subTitle} individual={individual} planResult={planResult} />
+      <div className="mt-2">
+        <IncreaseChart label={subTitle} individual={individual} planResult={planResult} />
       </div>
     </div>
   );
 }
 
 export function HoukokushoSheet() {
-  const { input, rates, decisionMeasures, reportPlan2Input, reportPlan2Rates, copyReportPlan1ToPlan2 } = useHojinnariStore(
+  const { input, rates, decisionMeasures, reportPlan2Input, reportPlan2Rates, copyReportPlan1ToPlan2, taxYear } = useHojinnariStore(
     useShallow((s) => ({
       input: s.input,
       rates: s.rates,
@@ -325,6 +409,7 @@ export function HoukokushoSheet() {
       reportPlan2Input: s.reportPlan2Input,
       reportPlan2Rates: s.reportPlan2Rates,
       copyReportPlan1ToPlan2: s.copyReportPlan1ToPlan2,
+      taxYear: s.taxYear,
     }))
   );
 
@@ -341,49 +426,134 @@ export function HoukokushoSheet() {
   const hasDecisionMeasures = decisionTotals.corporateExpense > 0 || decisionTotals.personalIncomeIncrease > 0 || decisionTotals.hiddenAssetIncrease > 0;
 
   // プラン1: 現在の入力値から計算
-  const individual1 = calcIndividual(input);
-  const plan1Micro = calcPlan1(input, rates);
-  const plan1Full = calcPlan2(input, rates);
+  const individual1 = calcIndividual(input, taxYear);
+  const plan1Micro = calcPlan1(input, rates, taxYear);
+  const plan1Full = calcPlan2(input, rates, taxYear);
 
   // プラン2: スナップショットから計算（なければプラン1と同じ）
   const p2Input = reportPlan2Input ?? input;
   const p2Rates = reportPlan2Rates ?? rates;
-  const individual2 = calcIndividual(p2Input);
-  const plan2Micro = calcPlan1(p2Input, p2Rates);
-  const plan2Full = calcPlan2(p2Input, p2Rates);
+  const individual2 = calcIndividual(p2Input, taxYear);
+  const plan2Micro = calcPlan1(p2Input, p2Rates, taxYear);
+  const plan2Full = calcPlan2(p2Input, p2Rates, taxYear);
+
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useCallback(() => {
+    const el = printRef.current;
+    if (!el) return;
+
+    // 印刷対象のページ要素を取得
+    const pages = el.querySelectorAll(".print-page");
+    if (pages.length === 0) return;
+
+    // ヘッダー部分（.print-page以外の先頭要素）
+    const header = el.querySelector(".flex.items-center.gap-4.bg-white");
+
+    // iframeで印刷
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    if (!doc) { document.body.removeChild(iframe); return; }
+
+    // スタイルシートをコピー
+    const styles = Array.from(document.styleSheets).map((ss) => {
+      try { return Array.from(ss.cssRules).map((r) => r.cssText).join("\n"); }
+      catch { return ""; }
+    }).join("\n");
+
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>
+      ${styles}
+      @page { margin: 5mm; size: A4 landscape; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { margin: 0; padding: 0; font-size: 9px; }
+      .no-print { display: none !important; }
+      .page { page-break-after: always; padding: 4px; transform: scale(0.68); transform-origin: top left; width: 147%; }
+      .page:last-child { page-break-after: avoid; }
+      td, th { padding: 1px 3px; }
+      h2 { font-size: 11px; margin: 0 0 2px; }
+      h3 { font-size: 10px; margin: 0 0 2px; }
+    </style></head><body>`);
+
+    // 各ページを出力
+    pages.forEach((page) => {
+      const clone = page.cloneNode(true) as HTMLElement;
+      // input → span変換
+      clone.querySelectorAll("input").forEach((input) => {
+        const span = document.createElement("span");
+        span.textContent = input.value;
+        span.style.fontWeight = "bold";
+        input.replaceWith(span);
+      });
+      const headerClone = header?.cloneNode(true) as HTMLElement | undefined;
+      if (headerClone) {
+        headerClone.querySelectorAll(".no-print").forEach((n) => n.remove());
+      }
+      const wrapper = document.createElement("div");
+      wrapper.className = "page";
+      if (headerClone) wrapper.appendChild(headerClone);
+      wrapper.appendChild(clone);
+      doc.body.appendChild(wrapper);
+    });
+
+    doc.write("</body></html>");
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 500);
+  }, []);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4" ref={printRef}>
       {/* ヘッダー */}
       <div className="flex items-center gap-4 bg-white rounded border p-3">
         <h2 className="font-bold text-sm">法人成りシミュレーション</h2>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={copyReportPlan1ToPlan2}
-          className="text-xs"
-        >
-          プラン1をプラン2に転記
-        </Button>
+        <div className="flex items-center gap-2 no-print">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={copyReportPlan1ToPlan2}
+            className="text-xs"
+          >
+            プラン1をプラン2に転記
+          </Button>
+          <button
+            onClick={handlePrint}
+            className="text-xs border border-green-500 text-green-700 rounded px-3 py-1 hover:bg-green-50 transition-colors"
+          >
+            PDF出力
+          </button>
+        </div>
         <div className="text-xs text-gray-600 border border-gray-300 rounded px-2 py-1">
           ● 円単位
         </div>
       </div>
 
-      {/* プラン1（左） / プラン2（右） */}
-      <div className="flex gap-6 flex-wrap">
-        <PlanBlock
-          title="プラン1"
-          individual={individual1}
-          plan1Result={plan1Micro}
-          plan2Result={plan1Full}
-        />
-        <PlanBlock
-          title="プラン2"
-          individual={individual2}
-          plan1Result={plan2Micro}
-          plan2Result={plan2Full}
-        />
+      {/* 完全法人成り（1ページ目） */}
+      <div className="print-page">
+        <h3 className="font-bold text-sm border-b pb-1 mb-2">完全法人成り</h3>
+        <div className="flex gap-6 flex-wrap">
+          <SubPlanBlock title="プラン1" subTitle="完全法人成り" individual={individual1} planResult={plan1Full} />
+          <SubPlanBlock title="プラン2" subTitle="完全法人成り" individual={individual2} planResult={plan2Full} />
+        </div>
+      </div>
+
+      {/* マイクロ法人成り（2ページ目） */}
+      <div className="print-page">
+        <h3 className="font-bold text-sm border-b pb-1 mb-2">マイクロ法人成り</h3>
+        <div className="flex gap-6 flex-wrap">
+          <SubPlanBlock title="プラン1" subTitle="マイクロ法人成り" individual={individual1} planResult={plan1Micro} />
+          <SubPlanBlock title="プラン2" subTitle="マイクロ法人成り" individual={individual2} planResult={plan2Micro} />
+        </div>
       </div>
 
       {/* 決算対策の効果 */}

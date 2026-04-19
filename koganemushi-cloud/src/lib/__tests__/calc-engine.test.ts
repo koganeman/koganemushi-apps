@@ -22,6 +22,7 @@ const defaultRates: RateSettings = {
   healthInsuranceRate: 0.0991,
   nursingCareRate: 0.0159,
   pensionRate: 0.183,
+  childcareSupportRate: 0.0023,
   childcareContributionRate: 0.0036,
   healthBonusAnnualCap: 5730000,
   pensionBonusPerPaymentCap: 1500000,
@@ -151,12 +152,82 @@ describe("calcBasicDeduction", () => {
     expect(calcBasicDeduction(23500000)).toBe(580000);
   });
 
-  it("所得2350万1円: 58万", () => {
-    expect(calcBasicDeduction(23500001)).toBe(580000);
+  it("所得2350万1円: 48万（2350万超〜2400万以下）", () => {
+    expect(calcBasicDeduction(23500001)).toBe(480000);
   });
 
   it("所得2500万1円: 0", () => {
     expect(calcBasicDeduction(25000001)).toBe(0);
+  });
+});
+
+// ============================================================
+// 基礎控除（令和8年分・9年分）
+// ============================================================
+describe("calcBasicDeduction R8/R9", () => {
+  it("所得0円: 104万", () => {
+    expect(calcBasicDeduction(0, "R8")).toBe(1040000);
+  });
+
+  it("所得489万: 104万", () => {
+    expect(calcBasicDeduction(4890000, "R8")).toBe(1040000);
+  });
+
+  it("所得489万1円: 67万", () => {
+    expect(calcBasicDeduction(4890001, "R8")).toBe(670000);
+  });
+
+  it("所得655万1円: 62万", () => {
+    expect(calcBasicDeduction(6550001, "R8")).toBe(620000);
+  });
+
+  it("所得2350万1円: 48万", () => {
+    expect(calcBasicDeduction(23500001, "R8")).toBe(480000);
+  });
+
+  it("所得2500万1円: 0", () => {
+    expect(calcBasicDeduction(25000001, "R8")).toBe(0);
+  });
+
+  it("R9はR8と同じ", () => {
+    expect(calcBasicDeduction(0, "R9")).toBe(calcBasicDeduction(0, "R8"));
+    expect(calcBasicDeduction(4890001, "R9")).toBe(calcBasicDeduction(4890001, "R8"));
+    expect(calcBasicDeduction(6550001, "R9")).toBe(calcBasicDeduction(6550001, "R8"));
+  });
+});
+
+// ============================================================
+// 給与所得控除（令和8年分・9年分）
+// ============================================================
+describe("salaryIncomeDeduction R8/R9", () => {
+  it("74万未満: 0", () => {
+    expect(salaryIncomeDeduction(739999, "R8")).toBe(0);
+  });
+
+  it("74万ちょうど: 0", () => {
+    expect(salaryIncomeDeduction(740000, "R8")).toBe(0);
+  });
+
+  it("74万1円: 1円", () => {
+    expect(salaryIncomeDeduction(740001, "R8")).toBe(1);
+  });
+
+  it("220万: 146万（220万-74万）", () => {
+    expect(salaryIncomeDeduction(2200000, "R8")).toBe(1460000);
+  });
+
+  it("220万1円から30%+8万式", () => {
+    // 220万1円 × 0.7 - 8万 = 1,540,007 - 80,000 = 1,460,007 ≈ 146万
+    expect(salaryIncomeDeduction(2200001, "R8")).toBeCloseTo(2200001 * 0.7 - 80000, 0);
+  });
+
+  it("850万超: 上限195万控除", () => {
+    expect(salaryIncomeDeduction(10000000, "R8")).toBe(10000000 - 1950000);
+  });
+
+  it("R7は65万が最低保障", () => {
+    expect(salaryIncomeDeduction(650000, "R7")).toBe(0);
+    expect(salaryIncomeDeduction(650001, "R7")).toBe(1);
   });
 });
 

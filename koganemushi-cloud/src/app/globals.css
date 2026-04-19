@@ -127,3 +127,58 @@
     @apply font-sans;
   }
 }
+
+/* 印刷用スタイル: body.printing 時のみ適用 */
+@media print {
+  body.printing > *:not(#print-container) {
+    display: none !important;
+  }
+  #print-container {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  #print-container .no-print {
+    display: none !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    margin: 5mm;
+    size: A4 landscape;
+  }
+  /* 1ページに収めるためスケール縮小（役員報酬用） */
+  #print-container.print-single-page {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  #print-container.print-single-page .print-content {
+    transform: scale(0.72);
+    transform-origin: top left;
+    width: 138%;
+  }
+  /* 複数ページ用（法人なり用） */
+  #print-container.print-multi-page {
+    display: block !important;
+  }
+  #print-container.print-multi-page .print-content {
+    font-size: 9px;
+  }
+  #print-container.print-multi-page .print-content td,
+  #print-container.print-multi-page .print-content th {
+    padding: 1px 4px;
+  }
+  #print-container.print-multi-page .print-page {
+    page-break-after: always;
+  }
+  #print-container.print-multi-page .print-page:last-child {
+    page-break-after: avoid;
+  }
+}

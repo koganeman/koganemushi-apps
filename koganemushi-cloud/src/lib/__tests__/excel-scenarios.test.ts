@@ -22,6 +22,7 @@ const rates: RateSettings = {
   healthInsuranceRate: 0.0991,
   nursingCareRate: 0.0159,
   pensionRate: 0.183,
+  childcareSupportRate: 0,  // Excel ground truthは支援金制度導入前のデータ
   childcareContributionRate: 0.0036,
   healthBonusAnnualCap: 5730000,
   pensionBonusPerPaymentCap: 1500000,

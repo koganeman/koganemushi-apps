@@ -28,8 +28,8 @@ function YenInput({
 }
 
 export function OptimizationSheet() {
-  const { input, rates, setInput } = useHojinnariStore(
-    useShallow((s) => ({ input: s.input, rates: s.rates, setInput: s.setInput }))
+  const { input, rates, setInput, taxYear } = useHojinnariStore(
+    useShallow((s) => ({ input: s.input, rates: s.rates, setInput: s.setInput, taxYear: s.taxYear }))
   );
 
   if (input.businessIncome <= 0) {
@@ -41,11 +41,11 @@ export function OptimizationSheet() {
   }
 
   // 現在の個人手取額
-  const individual = calcIndividual(input);
+  const individual = calcIndividual(input, taxYear);
   const currentNetIncome = individual.netIncome;
 
   // PLAN1（完全法人成り）最適化: 役員報酬を変化させる
-  const plan2Points = optimizePlan2Salary(input, rates, 1000000);
+  const plan2Points = optimizePlan2Salary(input, rates, 1000000, taxYear);
 
   // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる
   const plan1Points: Array<{
@@ -58,7 +58,7 @@ export function OptimizationSheet() {
   const microRevenue = input.plan1MicroRevenue;
   for (let sal = 0; sal <= input.businessIncome; sal += step) {
     const modified = { ...input, plan1MicroSalary: sal };
-    const r = calcPlan1(modified, rates);
+    const r = calcPlan1(modified, rates, taxYear);
     plan1Points.push({
       salary: sal,
       combinedNetIncome: r.combinedNetIncome,

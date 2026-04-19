@@ -1,6 +1,7 @@
 "use client";
 
 import { useHojinnariStore, type HojinnariTab } from "@/stores/hojinnari-store";
+import { TaxYearSelector } from "@/components/tax-year-selector";
 import { SimulationSheet } from "@/components/hojinnari/simulation-sheet";
 import { DecisionMeasuresTable } from "@/components/hojinnari/decision-measures-table";
 import { HoujinnariSheet } from "@/components/hojinnari/houjinnari-sheet";
@@ -19,11 +20,13 @@ const TAB_LABELS: { id: HojinnariTab; label: string }[] = [
 export default function HojinnariPage() {
   const activeTab = useHojinnariStore((s) => s.activeTab);
   const setActiveTab = useHojinnariStore((s) => s.setActiveTab);
+  const taxYear = useHojinnariStore((s) => s.taxYear);
+  const setTaxYear = useHojinnariStore((s) => s.setTaxYear);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* タブナビゲーション（layout.tsx のヘッダー下） */}
-      <div className="bg-white border-b px-6 flex gap-0">
+      <div className="bg-white border-b px-6 flex items-center gap-0">
         {TAB_LABELS.map((tab) => (
           <button
             key={tab.id}
@@ -37,6 +40,9 @@ export default function HojinnariPage() {
             {tab.label}
           </button>
         ))}
+        <div className="ml-auto pr-2">
+          <TaxYearSelector value={taxYear} onChange={setTaxYear} />
+        </div>
       </div>
 
       <main className="max-w-[1400px] mx-auto">

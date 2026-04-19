@@ -23,10 +23,10 @@ function PercentInput({
 
   return (
     <div className="flex items-center gap-2">
-      <label className="text-sm whitespace-nowrap w-40">{label}</label>
+      <label className="text-sm whitespace-nowrap w-56">{label}</label>
       <Input
         type="text"
-        className="w-24 text-right h-8 text-sm"
+        className="w-24 text-right h-8 text-sm shrink-0"
         value={isFocused ? display : externalDisplay}
         onChange={(e) => setDisplay(e.target.value)}
         onFocus={() => {
@@ -117,7 +117,12 @@ export function RateSettingsPanel() {
           onChange={(v) => updateRate("pensionRate", v)}
         />
         <PercentInput
-          label="子ども・子育て拠出金率"
+          label="子ども・子育て支援金率（労使折半）"
+          value={rates.childcareSupportRate}
+          onChange={(v) => updateRate("childcareSupportRate", v)}
+        />
+        <PercentInput
+          label="子ども・子育て拠出金率（会社のみ）"
           value={rates.childcareContributionRate}
           onChange={(v) => updateRate("childcareContributionRate", v)}
         />

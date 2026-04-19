@@ -2,6 +2,7 @@
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { TaxYearSelector } from "@/components/tax-year-selector";
 import { RateSettingsPanel } from "@/components/rate-settings";
 import { ExecutiveTable } from "@/components/executive-table";
 import { HojinzeiSheet } from "@/components/hojinzei-sheet";
@@ -30,6 +31,8 @@ export default function SimulationPage() {
     combineOtherSalaryForInsurance,
     setCombineOtherSalaryForInsurance,
     transferCurrentToComparison,
+    taxYear,
+    setTaxYear,
   } = useSimulationStore(
     useShallow((s) => ({
       activeTab: s.activeTab,
@@ -39,6 +42,8 @@ export default function SimulationPage() {
       combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
       setCombineOtherSalaryForInsurance: s.setCombineOtherSalaryForInsurance,
       transferCurrentToComparison: s.transferCurrentToComparison,
+      taxYear: s.taxYear,
+      setTaxYear: s.setTaxYear,
     }))
   );
 
@@ -73,6 +78,7 @@ export default function SimulationPage() {
 
             {/* グローバルフラグ */}
             <div className="flex items-center gap-6 px-2">
+              <TaxYearSelector value={taxYear} onChange={setTaxYear} />
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={governmentHealthInsurance}

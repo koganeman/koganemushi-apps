@@ -26,7 +26,7 @@ interface PlanResults {
 }
 
 function usePlanResults(executives: ExecutiveInput[]): PlanResults {
-  const { rates, governmentHealthInsurance, combineOtherSalaryForInsurance, corporateTaxParams, effectiveTaxRates } =
+  const { rates, governmentHealthInsurance, combineOtherSalaryForInsurance, corporateTaxParams, effectiveTaxRates, taxYear } =
     useSimulationStore(
       useShallow((s) => ({
         rates: s.rates,
@@ -34,6 +34,7 @@ function usePlanResults(executives: ExecutiveInput[]): PlanResults {
         combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
         corporateTaxParams: s.corporateTaxParams,
         effectiveTaxRates: s.effectiveTaxRates,
+        taxYear: s.taxYear,
       }))
     );
 
@@ -44,9 +45,10 @@ function usePlanResults(executives: ExecutiveInput[]): PlanResults {
           isGovernmentHealthInsurance: governmentHealthInsurance,
           combineOtherSalary: combineOtherSalaryForInsurance,
           executiveIndex: i,
+          taxYear,
         })
       ),
-    [executives, rates, governmentHealthInsurance, combineOtherSalaryForInsurance]
+    [executives, rates, governmentHealthInsurance, combineOtherSalaryForInsurance, taxYear]
   );
 
   const totals = useMemo(() => sumResults(results), [results]);

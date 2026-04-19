@@ -5,12 +5,13 @@ import type {
   EffectiveTaxRates,
   CorporateTaxParams,
 } from "@/types/simulation";
+import type { TaxYear } from "./tax-tables";
 import {
   HEALTH_INSURANCE_TABLE,
   HEALTH_INSURANCE_MAX_GRADE,
   PENSION_TABLE,
   PENSION_MAX_GRADE,
-  BASIC_DEDUCTION_TABLE,
+  getBasicDeductionTable,
   INCOME_TAX_TABLE,
 } from "./tax-tables";
 
@@ -20,11 +21,16 @@ import {
 
 /**
  * 給与所得控除後の金額（通常）- KoujyogoTS
- * 令和7年改正対応
+ * taxYear に応じて最低保障額・ブレークポイントを切替
+ *   R7: 最低保障65万、ブレーク190万
+ *   R8/R9: 最低保障74万（本則69万+特例5万）、ブレーク220万
  */
-export function salaryIncomeDeduction(salaryIncome: number): number {
-  if (salaryIncome < 650000) { return 0; }
-  if (salaryIncome <= 1900000) { return salaryIncome - 650000; }
+export function salaryIncomeDeduction(salaryIncome: number, taxYear: TaxYear = "R7"): number {
+  const minDeduction = (taxYear === "R7") ? 650000 : 740000;
+  const breakpoint = (taxYear === "R7") ? 1900000 : 2200000;
+
+  if (salaryIncome < minDeduction) { return 0; }
+  if (salaryIncome <= breakpoint) { return salaryIncome - minDeduction; }
   if (salaryIncome < 3600000) { return salaryIncome * 0.7 - 80000; }
   if (salaryIncome < 6600000) { return salaryIncome * 0.8 - 440000; }
   if (salaryIncome < 8500000) { return salaryIncome * 0.9 - 1100000; }
@@ -33,11 +39,15 @@ export function salaryIncomeDeduction(salaryIncome: number): number {
 
 /**
  * 給与所得控除後の金額（子育て介護世帯）- Koujyogo_ch
- * 令和7年改正対応 - 850万円→1,000万円に上限引き上げ
+ * 850万円→1,000万円に上限引き上げ（R7〜）
+ * R8/R9: 最低保障74万、ブレーク220万
  */
-export function salaryIncomeDeductionChildcare(salaryIncome: number): number {
-  if (salaryIncome < 650000) { return 0; }
-  if (salaryIncome <= 1900000) { return salaryIncome - 650000; }
+export function salaryIncomeDeductionChildcare(salaryIncome: number, taxYear: TaxYear = "R7"): number {
+  const minDeduction = (taxYear === "R7") ? 650000 : 740000;
+  const breakpoint = (taxYear === "R7") ? 1900000 : 2200000;
+
+  if (salaryIncome < minDeduction) { return 0; }
+  if (salaryIncome <= breakpoint) { return salaryIncome - minDeduction; }
   if (salaryIncome < 3600000) { return salaryIncome * 0.7 - 80000; }
   if (salaryIncome < 6600000) { return salaryIncome * 0.8 - 440000; }
   if (salaryIncome < 10000000) { return salaryIncome * 0.9 - 1100000; }
@@ -50,11 +60,12 @@ export function salaryIncomeDeductionChildcare(salaryIncome: number): number {
  */
 export function calcSalaryIncome(
   salaryIncome: number,
-  isChildcareHousehold: boolean
+  isChildcareHousehold: boolean,
+  taxYear: TaxYear = "R7"
 ): number {
   return isChildcareHousehold
-    ? salaryIncomeDeductionChildcare(salaryIncome)
-    : salaryIncomeDeduction(salaryIncome);
+    ? salaryIncomeDeductionChildcare(salaryIncome, taxYear)
+    : salaryIncomeDeduction(salaryIncome, taxYear);
 }
 
 // ============================================================
@@ -115,13 +126,15 @@ export function calcIncomeTaxWithDetail(taxableIncome: number): {
  * 基礎控除額の計算
  * 合計所得金額に応じた基礎控除額を返す
  */
-export function calcBasicDeduction(totalIncome: number): number {
-  for (const [threshold, deduction] of BASIC_DEDUCTION_TABLE) {
+export function calcBasicDeduction(totalIncome: number, taxYear: TaxYear = "R7"): number {
+  const table = getBasicDeductionTable(taxYear);
+  for (const [threshold, deduction] of table) {
     if (totalIncome >= threshold) {
       return deduction;
     }
   }
-  return 950000;
+  // テーブルの最後のエントリ（最大控除額）をフォールバック
+  return table[table.length - 1][1];
 }
 
 // ============================================================
@@ -376,6 +389,34 @@ export interface CalcExecutiveContext {
   isGovernmentHealthInsurance: boolean;
   combineOtherSalary: boolean;
   executiveIndex: number;
+  taxYear?: TaxYear;
+}
+
+/** 子ども・子育て支援金の計算（月額・個人負担分） */
+function calcChildcareSupportMonthly(
+  monthlyIncome: number,
+  rates: RateSettings
+): number {
+  if (monthlyIncome <= 0) { return 0; }
+  const standard = lookupStandardMonthlyRemuneration(
+    monthlyIncome,
+    HEALTH_INSURANCE_TABLE,
+    HEALTH_INSURANCE_MAX_GRADE
+  );
+  return standard * rates.childcareSupportRate / 2;
+}
+
+/** 子ども・子育て支援金の計算（賞与・個人負担分） */
+function calcBonusChildcareSupport(
+  bonusAmount: number,
+  rates: RateSettings
+): number {
+  if (bonusAmount <= 0) { return 0; }
+  const standardBonus = Math.min(
+    Math.floor(bonusAmount / 1000) * 1000,
+    rates.healthBonusAnnualCap
+  );
+  return standardBonus * rates.childcareSupportRate / 2;
 }
 
 /** 健康保険料の計算（個人負担） */
@@ -402,6 +443,24 @@ function calcPersonalHealthInsurance(
     exec.age, rates
   );
   return monthlySalaryHealth + bonusHealth;
+}
+
+/** 子ども・子育て支援金の計算（個人負担） */
+function calcPersonalChildcareSupport(
+  exec: ExecutiveInput,
+  rates: RateSettings,
+  monthlyInsuranceBase: number,
+  isGovernmentHealthInsurance: boolean
+): number {
+  if (!exec.socialInsuranceEnrolled || !isGovernmentHealthInsurance) {
+    return 0;
+  }
+  const monthlySupportFee = calcChildcareSupportMonthly(monthlyInsuranceBase, rates) * 12;
+  const bonusSupportFee = calcBonusChildcareSupport(
+    exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
+    rates
+  );
+  return monthlySupportFee + bonusSupportFee;
 }
 
 /** 厚生年金保険料の計算（個人負担） */
@@ -489,8 +548,17 @@ function calcEmployerInsurance(
       )
     : 0;
 
+  // 子ども・子育て支援金（会社負担分 = 個人負担分と同額）
+  const employerChildcareSupport = isGovernmentHealthInsurance
+    ? calcChildcareSupportMonthly(monthlyInsuranceBase, rates) * 12 +
+      calcBonusChildcareSupport(
+        exec.predeterminedBonus1 + exec.predeterminedBonus2 + exec.predeterminedBonus3,
+        rates
+      )
+    : 0;
+
   return employerHealthMonthly + employerPensionMonthly +
-    childcare + employerBonusPension + employerBonusHealth;
+    childcare + employerBonusPension + employerBonusHealth + employerChildcareSupport;
 }
 
 // ============================================================
@@ -499,12 +567,13 @@ function calcEmployerInsurance(
 
 /** 給与収入・所得・社保ベースの計算 */
 function calcIncomeBase(exec: ExecutiveInput, ctx: CalcExecutiveContext) {
+  const taxYear = ctx.taxYear ?? "R7";
   const totalSalaryIncome =
     exec.regularSalary + exec.predeterminedBonus1 +
     exec.predeterminedBonus2 + exec.predeterminedBonus3 +
     exec.otherSalaryIncome - exec.definedBenefitPension;
   const salaryIncomeAfterDeduction = calcSalaryIncome(
-    totalSalaryIncome, exec.childcareHousehold
+    totalSalaryIncome, exec.childcareHousehold, taxYear
   );
   const totalIncome = salaryIncomeAfterDeduction + exec.dividendIncome + exec.otherIncome;
   let insuranceSalaryBase = exec.regularSalary - exec.definedBenefitPension;
@@ -533,12 +602,16 @@ export function calcExecutive(
   const base = calcIncomeBase(exec, ctx);
   const monthlyInsuranceBase = base.insuranceSalaryBase / 12;
 
+  const taxYear = ctx.taxYear ?? "R7";
   const healthInsurance = calcPersonalHealthInsurance(
     exec, rates, monthlyInsuranceBase, ctx.isGovernmentHealthInsurance
   );
   const pensionInsurance = calcPersonalPension(exec, rates, monthlyInsuranceBase);
-  const totalSocialInsurance = healthInsurance + pensionInsurance;
-  const basicDeduction = calcBasicDeduction(base.totalIncome);
+  const childcareSupport = calcPersonalChildcareSupport(
+    exec, rates, monthlyInsuranceBase, ctx.isGovernmentHealthInsurance
+  );
+  const totalSocialInsurance = healthInsurance + pensionInsurance + childcareSupport;
+  const basicDeduction = calcBasicDeduction(base.totalIncome, taxYear);
 
   const taxableIncomeRaw = base.salaryIncomeAfterDeduction +
     exec.dividendIncome + exec.otherIncome -
