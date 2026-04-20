@@ -50,6 +50,7 @@ function migrateExecutive(exec: Partial<ExecutiveInput>): ExecutiveInput {
     postChangeMonthlyRemuneration:
       exec.postChangeMonthlyRemuneration ?? (regular > 0 ? Math.floor(regular / 12) : 0),
     standardRemunerationChangeMonth: exec.standardRemunerationChangeMonth ?? 1,
+    hasMidYearChange: exec.hasMidYearChange ?? false,
   };
 }
 
@@ -119,19 +120,18 @@ export const useSimulationStore = create<SimulationState>()(
     }),
     {
       name: "koganemushi-simulation",
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
         const s = persistedState as Record<string, unknown>;
-        if (version < 2 && s && typeof s === "object") {
+        if (!s || typeof s !== "object") return s;
+        if (version < 2) {
           delete s.governmentHealthInsurance;
-          if (Array.isArray(s.currentExecutives)) {
-            s.currentExecutives = (s.currentExecutives as Partial<ExecutiveInput>[]).map(migrateExecutive);
-          }
-          if (Array.isArray(s.comparisonExecutives)) {
-            s.comparisonExecutives = (s.comparisonExecutives as Partial<ExecutiveInput>[]).map(migrateExecutive);
-          }
-          if (Array.isArray(s.plan2Executives)) {
-            s.plan2Executives = (s.plan2Executives as Partial<ExecutiveInput>[]).map(migrateExecutive);
+        }
+        if (version < 3) {
+          for (const key of ["currentExecutives", "comparisonExecutives", "plan2Executives"] as const) {
+            if (Array.isArray(s[key])) {
+              s[key] = (s[key] as Partial<ExecutiveInput>[]).map(migrateExecutive);
+            }
           }
         }
         return s;
