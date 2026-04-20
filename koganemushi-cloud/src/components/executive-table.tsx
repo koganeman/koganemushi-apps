@@ -21,6 +21,9 @@ const rows: RowDef[] = [
   { label: "役員名", key: "input", field: "name" },
   { label: "年齢", key: "input", field: "age" },
   { label: "定期同額", key: "input", field: "regularSalary", inputBg: "bg-yellow-50" },
+  { label: "変更前月額", key: "input", field: "preChangeMonthlyRemuneration", inputBg: "bg-yellow-50" },
+  { label: "変更後月額", key: "input", field: "postChangeMonthlyRemuneration", inputBg: "bg-yellow-50" },
+  { label: "改定月", key: "input", field: "standardRemunerationChangeMonth", inputBg: "bg-yellow-50" },
   { label: "事前確定給与1回目", key: "input", field: "predeterminedBonus1", inputBg: "bg-yellow-50" },
   { label: "事前確定給与2回目", key: "input", field: "predeterminedBonus2", inputBg: "bg-yellow-50" },
   { label: "事前確定給与3回目", key: "input", field: "predeterminedBonus3", inputBg: "bg-yellow-50" },
@@ -85,6 +88,7 @@ function renderInputCell(row: RowDef, ctx: CellContext): React.ReactNode {
         onChange={(v) => ctx.updateField(ctx.index, field, v)}
         isName={field === "name"}
         isAge={field === "age"}
+        isMonth={field === "standardRemunerationChangeMonth"}
         bg={row.inputBg}
       />
     </td>
@@ -121,12 +125,14 @@ function CellInput({
   onChange,
   isName,
   isAge,
+  isMonth,
   bg,
 }: {
   value: string | number;
   onChange: (v: string | number) => void;
   isName?: boolean;
   isAge?: boolean;
+  isMonth?: boolean;
   bg?: string;
 }) {
   if (isName) {
@@ -140,13 +146,24 @@ function CellInput({
     );
   }
 
-  if (isAge) {
+  if (isAge || isMonth) {
+    const min = isMonth ? 1 : 0;
+    const max = isMonth ? 13 : undefined;
     return (
       <input
         type="number"
+        min={min}
+        max={max}
         className={`w-full px-1 py-0.5 text-sm text-right border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 ${bg ?? ""}`}
         value={value === 0 ? "" : value}
-        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+        onChange={(e) => {
+          const n = parseInt(e.target.value) || 0;
+          if (isMonth) {
+            onChange(Math.min(13, Math.max(1, n || 1)));
+          } else {
+            onChange(n);
+          }
+        }}
       />
     );
   }
@@ -194,7 +211,7 @@ export function ExecutiveTable({
           {/* 加入チェックボックス行 */}
           <tr className="border-b">
             <th className="sticky left-0 bg-white z-10 border px-2 py-1 text-left w-36 min-w-36">
-              {/* empty */}
+              <span className="text-xs font-bold">社会保険</span>
             </th>
             {visible.map((exec, i) => (
               <th key={i} className="border px-1 py-1 text-center min-w-24">
