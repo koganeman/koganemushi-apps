@@ -76,6 +76,8 @@ export interface ExecutiveInput {
   postChangeMonthlyRemuneration: number;
   /** 標準報酬改定月（1〜13、1=期首から改定後月額を使用） */
   standardRemunerationChangeMonth: number;
+  /** 期中に標準報酬改定がある（詳細入力フラグ） */
+  hasMidYearChange: boolean;
 }
 
 /** 役員1名の計算結果 */

@@ -43,6 +43,7 @@ export function createEmptyExecutive(): ExecutiveInput {
     preChangeMonthlyRemuneration: 0,
     postChangeMonthlyRemuneration: 0,
     standardRemunerationChangeMonth: 1,
+    hasMidYearChange: false,
   };
 }
 
