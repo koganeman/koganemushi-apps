@@ -451,10 +451,12 @@ describe("calcExecutive - 統合テスト", () => {
       childcareHousehold: true,
       manualHealthInsurance: false,
       manualHealthInsuranceAmount: 0,
+      preChangeMonthlyRemuneration: 0,
+      postChangeMonthlyRemuneration: 10000000 / 12,
+      standardRemunerationChangeMonth: 1,
     };
 
     const result = calcExecutive(exec, defaultRates, {
-      isGovernmentHealthInsurance: true,
       combineOtherSalary: false,
       executiveIndex: 0,
     });
@@ -498,10 +500,12 @@ describe("calcExecutive - 統合テスト", () => {
       childcareHousehold: false,
       manualHealthInsurance: false,
       manualHealthInsuranceAmount: 0,
+      preChangeMonthlyRemuneration: 0,
+      postChangeMonthlyRemuneration: 5000000 / 12,
+      standardRemunerationChangeMonth: 1,
     };
 
     const result = calcExecutive(exec, defaultRates, {
-      isGovernmentHealthInsurance: true,
       combineOtherSalary: false,
       executiveIndex: 0,
     });
@@ -530,15 +534,141 @@ describe("calcExecutive - 統合テスト", () => {
       childcareHousehold: false,
       manualHealthInsurance: true,
       manualHealthInsuranceAmount: 500000,
+      preChangeMonthlyRemuneration: 0,
+      postChangeMonthlyRemuneration: 8000000 / 12,
+      standardRemunerationChangeMonth: 1,
     };
 
     const result = calcExecutive(exec, defaultRates, {
-      isGovernmentHealthInsurance: true,
       combineOtherSalary: false,
       executiveIndex: 0,
     });
 
     expect(result.healthInsurance).toBe(500000);
     expect(result.pensionInsurance).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// 標準報酬変更タイミング分割計算
+// ============================================================
+describe("calcExecutive - 標準報酬変更タイミング", () => {
+  const base: ExecutiveInput = {
+    name: "分割太郎",
+    age: 42,
+    regularSalary: 12000000,
+    predeterminedBonus1: 0,
+    predeterminedBonus2: 0,
+    predeterminedBonus3: 0,
+    otherSalaryIncome: 0,
+    definedBenefitPension: 0,
+    dividendIncome: 0,
+    otherIncome: 0,
+    otherDeductions: 0,
+    taxCredit: 0,
+    socialInsuranceEnrolled: true,
+    childcareHousehold: false,
+    manualHealthInsurance: false,
+    manualHealthInsuranceAmount: 0,
+    preChangeMonthlyRemuneration: 500000,
+    postChangeMonthlyRemuneration: 1000000,
+    standardRemunerationChangeMonth: 1,
+  };
+
+  it("改定月=1: post月額のみで12ヶ月分（従来挙動）", () => {
+    const result = calcExecutive(base, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("改定月=7: pre×6 + post×6", () => {
+    const exec: ExecutiveInput = { ...base, standardRemunerationChangeMonth: 7 };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(500000, 42, defaultRates) * 6 +
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 6;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("改定月=13: pre月額のみで12ヶ月分", () => {
+    const exec: ExecutiveInput = { ...base, standardRemunerationChangeMonth: 13 };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(500000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("pre=0, 改定月=7: 変更前期間の社保ゼロ、post×6のみ", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      preChangeMonthlyRemuneration: 0,
+      standardRemunerationChangeMonth: 7,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 6;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("post=0, 改定月=7: 変更後期間の社保ゼロ、pre×6のみ", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      postChangeMonthlyRemuneration: 0,
+      standardRemunerationChangeMonth: 7,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(500000, 42, defaultRates) * 6;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("健保任意入力ON: 健保は入力額、厚生年金は分割計算", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      manualHealthInsurance: true,
+      manualHealthInsuranceAmount: 600000,
+      standardRemunerationChangeMonth: 7,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    expect(result.healthInsurance).toBe(600000);
+    const expectedPension =
+      calcPensionInsuranceMonthly(500000, 42, defaultRates) * 6 +
+      calcPensionInsuranceMonthly(1000000, 42, defaultRates) * 6;
+    expect(result.pensionInsurance).toBeCloseTo(expectedPension, 0);
+  });
+
+  it("健保任意入力ON: 会社負担健保・子育て支援金はゼロ、会社負担厚生年金は計算", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      manualHealthInsurance: true,
+      manualHealthInsuranceAmount: 600000,
+      standardRemunerationChangeMonth: 1,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedEmployerPension =
+      calcPensionInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.employerSocialInsurance).toBeGreaterThanOrEqual(expectedEmployerPension);
   });
 });
