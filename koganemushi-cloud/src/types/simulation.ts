@@ -70,6 +70,12 @@ export interface ExecutiveInput {
   manualHealthInsurance: boolean;
   /** 健康保険料（任意入力時の値） */
   manualHealthInsuranceAmount: number;
+  /** 変更前月額報酬（円） */
+  preChangeMonthlyRemuneration: number;
+  /** 変更後月額報酬（円） */
+  postChangeMonthlyRemuneration: number;
+  /** 標準報酬改定月（1〜13、1=期首から改定後月額を使用） */
+  standardRemunerationChangeMonth: number;
 }
 
 /** 役員1名の計算結果 */
@@ -138,6 +144,4 @@ export interface SimulationData {
   comparisonExecutives: ExecutiveInput[];
   /** 他の給与社保合算フラグ（1人目のみ） */
   combineOtherSalaryForInsurance: boolean;
-  /** 政管健保加入フラグ */
-  governmentHealthInsurance: boolean;
 }
