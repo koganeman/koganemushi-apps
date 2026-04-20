@@ -408,6 +408,19 @@ export interface CalcExecutiveContext {
   taxYear?: TaxYear;
 }
 
+/** 社保計算用の月額（合算フラグに応じて他の給与収入を按分して加算） */
+function getInsuranceMonthlyBases(
+  exec: ExecutiveInput,
+  ctx: CalcExecutiveContext
+): { pre: number; post: number } {
+  const combine = ctx.combineOtherSalary && ctx.executiveIndex === 0;
+  const otherMonthly = combine ? exec.otherSalaryIncome / 12 : 0;
+  return {
+    pre: exec.preChangeMonthlyRemuneration + otherMonthly,
+    post: exec.postChangeMonthlyRemuneration + otherMonthly,
+  };
+}
+
 /** 子ども・子育て支援金の計算（月額・個人負担分） */
 function calcChildcareSupportMonthly(
   monthlyIncome: number,
@@ -438,7 +451,9 @@ function calcBonusChildcareSupport(
 /** 健康保険料の計算（個人負担） */
 function calcPersonalHealthInsurance(
   exec: ExecutiveInput,
-  rates: RateSettings
+  rates: RateSettings,
+  pre: number,
+  post: number
 ): number {
   if (!exec.socialInsuranceEnrolled) {
     return 0;
@@ -447,8 +462,8 @@ function calcPersonalHealthInsurance(
     return exec.manualHealthInsuranceAmount;
   }
   const monthlySalaryHealth = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcHealthInsuranceMonthly(m, exec.age, rates)
   );
@@ -462,14 +477,16 @@ function calcPersonalHealthInsurance(
 /** 子ども・子育て支援金の計算（個人負担） */
 function calcPersonalChildcareSupport(
   exec: ExecutiveInput,
-  rates: RateSettings
+  rates: RateSettings,
+  pre: number,
+  post: number
 ): number {
   if (!exec.socialInsuranceEnrolled || exec.manualHealthInsurance) {
     return 0;
   }
   const monthlySupportFee = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcChildcareSupportMonthly(m, rates)
   );
@@ -483,14 +500,16 @@ function calcPersonalChildcareSupport(
 /** 厚生年金保険料の計算（個人負担） */
 function calcPersonalPension(
   exec: ExecutiveInput,
-  rates: RateSettings
+  rates: RateSettings,
+  pre: number,
+  post: number
 ): number {
   if (!exec.socialInsuranceEnrolled) {
     return 0;
   }
   const monthlyPension = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcPensionInsuranceMonthly(m, exec.age, rates)
   );
@@ -535,15 +554,17 @@ function calcPersonalTax(
 /** 会社負担社会保険料の計算 */
 function calcEmployerInsurance(
   exec: ExecutiveInput,
-  rates: RateSettings
+  rates: RateSettings,
+  pre: number,
+  post: number
 ): number {
   if (!exec.socialInsuranceEnrolled) {
     return 0;
   }
 
   const employerPensionMonthly = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcPensionInsuranceMonthly(m, exec.age, rates)
   );
@@ -564,8 +585,8 @@ function calcEmployerInsurance(
   }
 
   const employerHealthMonthly = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcHealthInsuranceMonthly(m, exec.age, rates)
   );
@@ -575,8 +596,8 @@ function calcEmployerInsurance(
   );
   // 子ども・子育て支援金（会社負担分 = 個人負担分と同額）
   const employerChildcareSupport = splitAnnualInsurance(
-    exec.preChangeMonthlyRemuneration,
-    exec.postChangeMonthlyRemuneration,
+    pre,
+    post,
     exec.standardRemunerationChangeMonth,
     (m) => calcChildcareSupportMonthly(m, rates)
   ) + calcBonusChildcareSupport(
@@ -603,7 +624,6 @@ function calcIncomeBase(exec: ExecutiveInput, ctx: CalcExecutiveContext) {
     totalSalaryIncome, exec.childcareHousehold, taxYear
   );
   const totalIncome = salaryIncomeAfterDeduction + exec.dividendIncome + exec.otherIncome;
-  void ctx;  // combineOtherSalary/executiveIndex は今後の互換用
   return { totalSalaryIncome, salaryIncomeAfterDeduction, totalIncome };
 }
 
@@ -624,11 +644,12 @@ export function calcExecutive(
   ctx: CalcExecutiveContext
 ): ExecutiveResult {
   const base = calcIncomeBase(exec, ctx);
+  const { pre, post } = getInsuranceMonthlyBases(exec, ctx);
 
   const taxYear = ctx.taxYear ?? "R7";
-  const healthInsurance = calcPersonalHealthInsurance(exec, rates);
-  const pensionInsurance = calcPersonalPension(exec, rates);
-  const childcareSupport = calcPersonalChildcareSupport(exec, rates);
+  const healthInsurance = calcPersonalHealthInsurance(exec, rates, pre, post);
+  const pensionInsurance = calcPersonalPension(exec, rates, pre, post);
+  const childcareSupport = calcPersonalChildcareSupport(exec, rates, pre, post);
   const totalSocialInsurance = healthInsurance + pensionInsurance + childcareSupport;
   const basicDeduction = calcBasicDeduction(base.totalIncome, taxYear);
 
@@ -641,7 +662,7 @@ export function calcExecutive(
   const tax = calcPersonalTax(exec, taxableIncome);
   const totalTaxAndInsurance = tax.totalPersonalTax + totalSocialInsurance;
   const netIncome = calcNetIncome(exec, totalTaxAndInsurance);
-  const employerSocialInsurance = calcEmployerInsurance(exec, rates);
+  const employerSocialInsurance = calcEmployerInsurance(exec, rates, pre, post);
 
   return {
     ...base, socialInsuranceDeduction: totalSocialInsurance, basicDeduction,

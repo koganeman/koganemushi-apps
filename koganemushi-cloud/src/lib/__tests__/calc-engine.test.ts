@@ -671,4 +671,53 @@ describe("calcExecutive - 標準報酬変更タイミング", () => {
       calcPensionInsuranceMonthly(1000000, 42, defaultRates) * 12;
     expect(result.employerSocialInsurance).toBeGreaterThanOrEqual(expectedEmployerPension);
   });
+
+  it("combineOtherSalary=true, executiveIndex=0: otherSalaryIncome/12 が pre/post に加算される", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      otherSalaryIncome: 1200000,  // monthly 100,000
+      standardRemunerationChangeMonth: 7,
+      preChangeMonthlyRemuneration: 500000,
+      postChangeMonthlyRemuneration: 1000000,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: true,
+      executiveIndex: 0,
+    });
+    // pre = 500,000 + 100,000 = 600,000, post = 1,000,000 + 100,000 = 1,100,000
+    const expectedHealth =
+      calcHealthInsuranceMonthly(600000, 42, defaultRates) * 6 +
+      calcHealthInsuranceMonthly(1100000, 42, defaultRates) * 6;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("combineOtherSalary=true but executiveIndex=1: 加算されない（1人目のみ対象）", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      otherSalaryIncome: 1200000,
+      postChangeMonthlyRemuneration: 1000000,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: true,
+      executiveIndex: 1,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("combineOtherSalary=false: 加算されない（OFF時は従来通り）", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      otherSalaryIncome: 1200000,
+      postChangeMonthlyRemuneration: 1000000,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
 });
