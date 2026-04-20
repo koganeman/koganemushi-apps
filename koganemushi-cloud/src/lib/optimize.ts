@@ -40,7 +40,7 @@ function calcNetIncome(
   ctx: OptimizeContext,
   mutated: ExecutiveInput
 ): number {
-  const exec = { ...ctx.comparisonExecutives[0], ...mutated };
+  const exec = { ...ctx.comparisonExecutives[0], ...mutated, hasMidYearChange: false };
   return calcExecutive(exec, ctx.rates, {
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
@@ -49,7 +49,7 @@ function calcNetIncome(
 }
 
 function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): number {
-  const exec = { ...ctx.comparisonExecutives[0], ...mutated };
+  const exec = { ...ctx.comparisonExecutives[0], ...mutated, hasMidYearChange: false };
   const result = calcExecutive(exec, ctx.rates, {
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
