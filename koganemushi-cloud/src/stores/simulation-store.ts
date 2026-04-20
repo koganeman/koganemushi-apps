@@ -12,21 +12,18 @@ import { createDefaultSimulationData, createEmptyExecutive } from "@/lib/default
 export type Tab = "simulation" | "hojinzei" | "houkokusho" | "saitekika";
 
 interface SimulationState {
-  // Data
   rates: RateSettings;
   corporateTaxParams: CorporateTaxParams;
   effectiveTaxRates: EffectiveTaxRates;
   currentExecutives: ExecutiveInput[];
   comparisonExecutives: ExecutiveInput[];
   plan2Executives: ExecutiveInput[];
-  governmentHealthInsurance: boolean;
   combineOtherSalaryForInsurance: boolean;
   activeTab: Tab;
   taxYear: TaxYear;
   plan1Label: string;
   plan2Label: string;
 
-  // Actions
   setRates: (rates: RateSettings) => void;
   setCorporateTaxParams: (params: CorporateTaxParams) => void;
   updateCurrentExecutive: (index: number, exec: ExecutiveInput) => void;
@@ -35,7 +32,6 @@ interface SimulationState {
   copyToPlan2: () => void;
   applyDividend: (dividend: number, salary: number) => void;
   applyBonus: (bonus: number) => void;
-  setGovernmentHealthInsurance: (checked: boolean) => void;
   setCombineOtherSalaryForInsurance: (checked: boolean) => void;
   setActiveTab: (tab: Tab) => void;
   setTaxYear: (taxYear: TaxYear) => void;
@@ -45,82 +41,101 @@ interface SimulationState {
 
 const defaults = createDefaultSimulationData();
 
+function migrateExecutive(exec: Partial<ExecutiveInput>): ExecutiveInput {
+  const regular = exec.regularSalary ?? 0;
+  return {
+    ...createEmptyExecutive(),
+    ...exec,
+    preChangeMonthlyRemuneration: exec.preChangeMonthlyRemuneration ?? 0,
+    postChangeMonthlyRemuneration:
+      exec.postChangeMonthlyRemuneration ?? (regular > 0 ? Math.floor(regular / 12) : 0),
+    standardRemunerationChangeMonth: exec.standardRemunerationChangeMonth ?? 1,
+  };
+}
+
 export const useSimulationStore = create<SimulationState>()(
   persist(
     (set) => ({
-  // Initial data
-  rates: defaults.rates,
-  corporateTaxParams: defaults.corporateTaxParams,
-  effectiveTaxRates: defaults.effectiveTaxRates,
-  currentExecutives: defaults.currentExecutives,
-  comparisonExecutives: defaults.comparisonExecutives,
-  plan2Executives: Array.from({ length: 10 }, () => createEmptyExecutive()),
-  governmentHealthInsurance: defaults.governmentHealthInsurance,
-  combineOtherSalaryForInsurance: defaults.combineOtherSalaryForInsurance,
-  activeTab: "simulation",
-  taxYear: "R8" as TaxYear,
-  plan1Label: "",
-  plan2Label: "",
+      rates: defaults.rates,
+      corporateTaxParams: defaults.corporateTaxParams,
+      effectiveTaxRates: defaults.effectiveTaxRates,
+      currentExecutives: defaults.currentExecutives,
+      comparisonExecutives: defaults.comparisonExecutives,
+      plan2Executives: Array.from({ length: 10 }, () => createEmptyExecutive()),
+      combineOtherSalaryForInsurance: defaults.combineOtherSalaryForInsurance,
+      activeTab: "simulation",
+      taxYear: "R8" as TaxYear,
+      plan1Label: "",
+      plan2Label: "",
 
-  // Actions
-  setRates: (rates) => set({ rates }),
+      setRates: (rates) => set({ rates }),
+      setCorporateTaxParams: (corporateTaxParams) => set({ corporateTaxParams }),
 
-  setCorporateTaxParams: (corporateTaxParams) => set({ corporateTaxParams }),
+      updateCurrentExecutive: (index, exec) =>
+        set((state) => {
+          const updated = [...state.currentExecutives];
+          updated[index] = exec;
+          return { currentExecutives: updated };
+        }),
 
-  updateCurrentExecutive: (index, exec) =>
-    set((state) => {
-      const updated = [...state.currentExecutives];
-      updated[index] = exec;
-      return { currentExecutives: updated };
-    }),
+      updateComparisonExecutive: (index, exec) =>
+        set((state) => {
+          const updated = [...state.comparisonExecutives];
+          updated[index] = exec;
+          return { comparisonExecutives: updated };
+        }),
 
-  updateComparisonExecutive: (index, exec) =>
-    set((state) => {
-      const updated = [...state.comparisonExecutives];
-      updated[index] = exec;
-      return { comparisonExecutives: updated };
-    }),
+      transferCurrentToComparison: () =>
+        set((state) => ({
+          comparisonExecutives: state.currentExecutives.map((e) => ({ ...e })),
+        })),
 
-  transferCurrentToComparison: () =>
-    set((state) => ({
-      comparisonExecutives: state.currentExecutives.map((e) => ({ ...e })),
-    })),
+      copyToPlan2: () =>
+        set((state) => ({
+          plan2Executives: state.comparisonExecutives.map((e) => ({ ...e })),
+        })),
 
-  copyToPlan2: () =>
-    set((state) => ({
-      plan2Executives: state.comparisonExecutives.map((e) => ({ ...e })),
-    })),
+      applyDividend: (dividend, salary) =>
+        set((state) => {
+          const updated = [...state.comparisonExecutives];
+          updated[0] = { ...updated[0], dividendIncome: dividend, regularSalary: salary };
+          return { comparisonExecutives: updated };
+        }),
 
-  applyDividend: (dividend, salary) =>
-    set((state) => {
-      const updated = [...state.comparisonExecutives];
-      updated[0] = { ...updated[0], dividendIncome: dividend, regularSalary: salary };
-      return { comparisonExecutives: updated };
-    }),
+      applyBonus: (bonus) =>
+        set((state) => {
+          const updated = [...state.comparisonExecutives];
+          updated[0] = { ...updated[0], predeterminedBonus1: bonus };
+          return { comparisonExecutives: updated };
+        }),
 
-  applyBonus: (bonus) =>
-    set((state) => {
-      const updated = [...state.comparisonExecutives];
-      updated[0] = { ...updated[0], predeterminedBonus1: bonus };
-      return { comparisonExecutives: updated };
-    }),
+      setCombineOtherSalaryForInsurance: (combineOtherSalaryForInsurance) =>
+        set({ combineOtherSalaryForInsurance }),
 
-  setGovernmentHealthInsurance: (governmentHealthInsurance) =>
-    set({ governmentHealthInsurance }),
-
-  setCombineOtherSalaryForInsurance: (combineOtherSalaryForInsurance) =>
-    set({ combineOtherSalaryForInsurance }),
-
-  setActiveTab: (activeTab) => set({ activeTab }),
-
-  setTaxYear: (taxYear) => set({ taxYear }),
-
-  setPlan1Label: (plan1Label) => set({ plan1Label }),
-
-  setPlan2Label: (plan2Label) => set({ plan2Label }),
+      setActiveTab: (activeTab) => set({ activeTab }),
+      setTaxYear: (taxYear) => set({ taxYear }),
+      setPlan1Label: (plan1Label) => set({ plan1Label }),
+      setPlan2Label: (plan2Label) => set({ plan2Label }),
     }),
     {
       name: "koganemushi-simulation",
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        const s = persistedState as Record<string, unknown>;
+        if (version < 2 && s && typeof s === "object") {
+          delete s.governmentHealthInsurance;
+          if (Array.isArray(s.currentExecutives)) {
+            s.currentExecutives = (s.currentExecutives as Partial<ExecutiveInput>[]).map(migrateExecutive);
+          }
+          if (Array.isArray(s.comparisonExecutives)) {
+            s.comparisonExecutives = (s.comparisonExecutives as Partial<ExecutiveInput>[]).map(migrateExecutive);
+          }
+          if (Array.isArray(s.plan2Executives)) {
+            s.plan2Executives = (s.plan2Executives as Partial<ExecutiveInput>[]).map(migrateExecutive);
+          }
+        }
+        return s;
+      },
       partialize: (state) => ({
         rates: state.rates,
         corporateTaxParams: state.corporateTaxParams,
@@ -128,7 +143,6 @@ export const useSimulationStore = create<SimulationState>()(
         currentExecutives: state.currentExecutives,
         comparisonExecutives: state.comparisonExecutives,
         plan2Executives: state.plan2Executives,
-        governmentHealthInsurance: state.governmentHealthInsurance,
         combineOtherSalaryForInsurance: state.combineOtherSalaryForInsurance,
         taxYear: state.taxYear,
         plan1Label: state.plan1Label,

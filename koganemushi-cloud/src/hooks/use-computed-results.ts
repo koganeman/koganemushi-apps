@@ -4,7 +4,6 @@ import { useShallow } from "zustand/react/shallow";
 import { calcExecutive, sumResults, calcCorporateTaxTotal } from "@/lib/calc-engine";
 import type { ExecutiveInput, ExecutiveResult } from "@/types/simulation";
 
-/** 役員報酬合計（定期同額＋事前確定） */
 function calcExecPay(executives: ExecutiveInput[]): number {
   return executives.reduce(
     (s, e) =>
@@ -26,11 +25,10 @@ interface PlanResults {
 }
 
 function usePlanResults(executives: ExecutiveInput[]): PlanResults {
-  const { rates, governmentHealthInsurance, combineOtherSalaryForInsurance, corporateTaxParams, effectiveTaxRates, taxYear } =
+  const { rates, combineOtherSalaryForInsurance, corporateTaxParams, effectiveTaxRates, taxYear } =
     useSimulationStore(
       useShallow((s) => ({
         rates: s.rates,
-        governmentHealthInsurance: s.governmentHealthInsurance,
         combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
         corporateTaxParams: s.corporateTaxParams,
         effectiveTaxRates: s.effectiveTaxRates,
@@ -42,17 +40,15 @@ function usePlanResults(executives: ExecutiveInput[]): PlanResults {
     () =>
       executives.map((exec, i) =>
         calcExecutive(exec, rates, {
-          isGovernmentHealthInsurance: governmentHealthInsurance,
           combineOtherSalary: combineOtherSalaryForInsurance,
           executiveIndex: i,
           taxYear,
         })
       ),
-    [executives, rates, governmentHealthInsurance, combineOtherSalaryForInsurance, taxYear]
+    [executives, rates, combineOtherSalaryForInsurance, taxYear]
   );
 
   const totals = useMemo(() => sumResults(results), [results]);
-
   const execPay = useMemo(() => calcExecPay(executives), [executives]);
 
   const corporateIncome = useMemo(

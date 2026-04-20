@@ -532,12 +532,10 @@ describe("sumResults - 合計計算", () => {
     });
 
     const r1 = calcExecutive(exec1, rates, {
-      isGovernmentHealthInsurance: true,
       combineOtherSalary: false,
       executiveIndex: 0,
     });
     const r2 = calcExecutive(exec2, rates, {
-      isGovernmentHealthInsurance: true,
       combineOtherSalary: false,
       executiveIndex: 1,
     });
