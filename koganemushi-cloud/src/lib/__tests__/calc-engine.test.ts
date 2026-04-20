@@ -454,6 +454,7 @@ describe("calcExecutive - 統合テスト", () => {
       preChangeMonthlyRemuneration: 0,
       postChangeMonthlyRemuneration: 10000000 / 12,
       standardRemunerationChangeMonth: 1,
+      hasMidYearChange: false,
     };
 
     const result = calcExecutive(exec, defaultRates, {
@@ -503,6 +504,7 @@ describe("calcExecutive - 統合テスト", () => {
       preChangeMonthlyRemuneration: 0,
       postChangeMonthlyRemuneration: 5000000 / 12,
       standardRemunerationChangeMonth: 1,
+      hasMidYearChange: false,
     };
 
     const result = calcExecutive(exec, defaultRates, {
@@ -537,6 +539,7 @@ describe("calcExecutive - 統合テスト", () => {
       preChangeMonthlyRemuneration: 0,
       postChangeMonthlyRemuneration: 8000000 / 12,
       standardRemunerationChangeMonth: 1,
+      hasMidYearChange: false,
     };
 
     const result = calcExecutive(exec, defaultRates, {
@@ -573,6 +576,7 @@ describe("calcExecutive - 標準報酬変更タイミング", () => {
     preChangeMonthlyRemuneration: 500000,
     postChangeMonthlyRemuneration: 1000000,
     standardRemunerationChangeMonth: 1,
+    hasMidYearChange: true,
   };
 
   it("改定月=1: post月額のみで12ヶ月分（従来挙動）", () => {
@@ -718,6 +722,40 @@ describe("calcExecutive - 標準報酬変更タイミング", () => {
     });
     const expectedHealth =
       calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("hasMidYearChange=false: pre/post が設定されていても無視される", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      hasMidYearChange: false,
+      regularSalary: 12000000,
+      preChangeMonthlyRemuneration: 500000,
+      postChangeMonthlyRemuneration: 500000,
+      standardRemunerationChangeMonth: 7,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(1000000, 42, defaultRates) * 12;
+    expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
+  });
+
+  it("hasMidYearChange=false: definedBenefitPension が regularSalary から引かれる", () => {
+    const exec: ExecutiveInput = {
+      ...base,
+      hasMidYearChange: false,
+      regularSalary: 12000000,
+      definedBenefitPension: 600000,
+    };
+    const result = calcExecutive(exec, defaultRates, {
+      combineOtherSalary: false,
+      executiveIndex: 0,
+    });
+    const expectedHealth =
+      calcHealthInsuranceMonthly(950000, 42, defaultRates) * 12;
     expect(result.healthInsurance).toBeCloseTo(expectedHealth, 0);
   });
 });

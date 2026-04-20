@@ -415,6 +415,13 @@ function getInsuranceMonthlyBases(
 ): { pre: number; post: number } {
   const combine = ctx.combineOtherSalary && ctx.executiveIndex === 0;
   const otherMonthly = combine ? exec.otherSalaryIncome / 12 : 0;
+
+  if (!exec.hasMidYearChange) {
+    const regMonthly = (exec.regularSalary - exec.definedBenefitPension) / 12;
+    const base = regMonthly + otherMonthly;
+    return { pre: base, post: base };
+  }
+
   return {
     pre: exec.preChangeMonthlyRemuneration + otherMonthly,
     post: exec.postChangeMonthlyRemuneration + otherMonthly,

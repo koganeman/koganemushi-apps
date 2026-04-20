@@ -40,6 +40,7 @@ function makeExec(overrides: Partial<ExecutiveInput> = {}): ExecutiveInput {
     preChangeMonthlyRemuneration: 0,
     postChangeMonthlyRemuneration: regularSalary / 12,
     standardRemunerationChangeMonth: 1,
+    hasMidYearChange: false,
     ...overrides,
   };
 }
