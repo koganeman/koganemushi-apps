@@ -40,6 +40,10 @@ export function createEmptyExecutive(): ExecutiveInput {
     childcareHousehold: true,
     manualHealthInsurance: false,
     manualHealthInsuranceAmount: 0,
+    preChangeMonthlyRemuneration: 0,
+    postChangeMonthlyRemuneration: 0,
+    standardRemunerationChangeMonth: 1,
+    hasMidYearChange: false,
   };
 }
 
@@ -53,6 +57,5 @@ export function createDefaultSimulationData(): SimulationData {
     currentExecutives: executives,
     comparisonExecutives: executives.map((e) => ({ ...e })),
     combineOtherSalaryForInsurance: false,
-    governmentHealthInsurance: true,
   };
 }

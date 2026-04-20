@@ -19,6 +19,7 @@ const rates: RateSettings = {
 };
 
 function makeExec(overrides: Partial<ExecutiveInput> = {}): ExecutiveInput {
+  const regularSalary = overrides.regularSalary ?? 0;
   return {
     name: "",
     age: 45,
@@ -36,6 +37,10 @@ function makeExec(overrides: Partial<ExecutiveInput> = {}): ExecutiveInput {
     childcareHousehold: true,
     manualHealthInsurance: false,
     manualHealthInsuranceAmount: 0,
+    preChangeMonthlyRemuneration: 0,
+    postChangeMonthlyRemuneration: regularSalary / 12,
+    standardRemunerationChangeMonth: 1,
+    hasMidYearChange: false,
     ...overrides,
   };
 }
@@ -46,7 +51,6 @@ function makeContext(overrides: Partial<OptimizeContext> = {}): OptimizeContext 
     executives: [exec],
     comparisonExecutives: [exec],
     rates,
-    isGovernmentHealthInsurance: true,
     combineOtherSalaryForInsurance: false,
     corporateTaxParams: {
       preTaxCorporateIncome: 30000000,

@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { ExecutiveInput, ExecutiveResult } from "@/types/simulation";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { formatYen, parseYen } from "@/lib/format";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
+import { ExecutiveDetailDialog } from "./executive-detail-dialog";
 
 /** 行定義 */
 interface RowDef {
@@ -177,6 +179,8 @@ export function ExecutiveTable({
   const comparisonData = useComparisonResults();
   const { results, totals } = plan === "current" ? currentData : comparisonData;
 
+  const [openDialogIndex, setOpenDialogIndex] = useState<number | null>(null);
+
   const updateField = useCallback(
     (index: number, field: keyof ExecutiveInput, value: string | number | boolean) => {
       const updated = { ...executives[index], [field]: value };
@@ -194,7 +198,7 @@ export function ExecutiveTable({
           {/* 加入チェックボックス行 */}
           <tr className="border-b">
             <th className="sticky left-0 bg-white z-10 border px-2 py-1 text-left w-36 min-w-36">
-              {/* empty */}
+              <span className="text-xs font-bold">社会保険</span>
             </th>
             {visible.map((exec, i) => (
               <th key={i} className="border px-1 py-1 text-center min-w-24">
@@ -251,6 +255,26 @@ export function ExecutiveTable({
             ))}
             <th className="border px-2 py-1 bg-green-50" />
           </tr>
+          {/* 詳細ボタン行 */}
+          <tr className="border-b">
+            <th className="sticky left-0 bg-white z-10 border px-2 py-1 text-left w-36 min-w-36">
+              <span className="text-xs text-gray-600">詳細</span>
+            </th>
+            {visible.map((exec, i) => (
+              <th key={i} className="border px-1 py-1 text-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setOpenDialogIndex(i)}
+                  disabled={!exec.socialInsuranceEnrolled}
+                >
+                  ⚙
+                </Button>
+              </th>
+            ))}
+            <th className="border px-2 py-1 bg-green-50" />
+          </tr>
         </thead>
         <tbody>
           {rows.map((row, rowIdx) => (
@@ -286,6 +310,14 @@ export function ExecutiveTable({
           ))}
         </tbody>
       </table>
+      {openDialogIndex !== null && (
+        <ExecutiveDetailDialog
+          plan={plan}
+          index={openDialogIndex}
+          open={openDialogIndex !== null}
+          onOpenChange={(open) => !open && setOpenDialogIndex(null)}
+        />
+      )}
     </div>
   );
 }
