@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { ExecutiveInput, ExecutiveResult } from "@/types/simulation";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { formatYen, parseYen } from "@/lib/format";
 import { useSimulationStore } from "@/stores/simulation-store";
 import { useCurrentResults, useComparisonResults } from "@/hooks/use-computed-results";
+import { ExecutiveDetailDialog } from "./executive-detail-dialog";
 
 /** 行定義 */
 interface RowDef {
@@ -21,9 +23,6 @@ const rows: RowDef[] = [
   { label: "役員名", key: "input", field: "name" },
   { label: "年齢", key: "input", field: "age" },
   { label: "定期同額", key: "input", field: "regularSalary", inputBg: "bg-yellow-50" },
-  { label: "変更前月額", key: "input", field: "preChangeMonthlyRemuneration", inputBg: "bg-yellow-50" },
-  { label: "変更後月額", key: "input", field: "postChangeMonthlyRemuneration", inputBg: "bg-yellow-50" },
-  { label: "改定月", key: "input", field: "standardRemunerationChangeMonth", inputBg: "bg-yellow-50" },
   { label: "事前確定給与1回目", key: "input", field: "predeterminedBonus1", inputBg: "bg-yellow-50" },
   { label: "事前確定給与2回目", key: "input", field: "predeterminedBonus2", inputBg: "bg-yellow-50" },
   { label: "事前確定給与3回目", key: "input", field: "predeterminedBonus3", inputBg: "bg-yellow-50" },
@@ -88,7 +87,6 @@ function renderInputCell(row: RowDef, ctx: CellContext): React.ReactNode {
         onChange={(v) => ctx.updateField(ctx.index, field, v)}
         isName={field === "name"}
         isAge={field === "age"}
-        isMonth={field === "standardRemunerationChangeMonth"}
         bg={row.inputBg}
       />
     </td>
@@ -125,14 +123,12 @@ function CellInput({
   onChange,
   isName,
   isAge,
-  isMonth,
   bg,
 }: {
   value: string | number;
   onChange: (v: string | number) => void;
   isName?: boolean;
   isAge?: boolean;
-  isMonth?: boolean;
   bg?: string;
 }) {
   if (isName) {
@@ -146,24 +142,13 @@ function CellInput({
     );
   }
 
-  if (isAge || isMonth) {
-    const min = isMonth ? 1 : 0;
-    const max = isMonth ? 13 : undefined;
+  if (isAge) {
     return (
       <input
         type="number"
-        min={min}
-        max={max}
         className={`w-full px-1 py-0.5 text-sm text-right border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 ${bg ?? ""}`}
         value={value === 0 ? "" : value}
-        onChange={(e) => {
-          const n = parseInt(e.target.value) || 0;
-          if (isMonth) {
-            onChange(Math.min(13, Math.max(1, n || 1)));
-          } else {
-            onChange(n);
-          }
-        }}
+        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
       />
     );
   }
@@ -193,6 +178,8 @@ export function ExecutiveTable({
   const currentData = useCurrentResults();
   const comparisonData = useComparisonResults();
   const { results, totals } = plan === "current" ? currentData : comparisonData;
+
+  const [openDialogIndex, setOpenDialogIndex] = useState<number | null>(null);
 
   const updateField = useCallback(
     (index: number, field: keyof ExecutiveInput, value: string | number | boolean) => {
@@ -268,6 +255,26 @@ export function ExecutiveTable({
             ))}
             <th className="border px-2 py-1 bg-green-50" />
           </tr>
+          {/* 詳細ボタン行 */}
+          <tr className="border-b">
+            <th className="sticky left-0 bg-white z-10 border px-2 py-1 text-left w-36 min-w-36">
+              <span className="text-xs text-gray-600">詳細</span>
+            </th>
+            {visible.map((exec, i) => (
+              <th key={i} className="border px-1 py-1 text-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setOpenDialogIndex(i)}
+                  disabled={!exec.socialInsuranceEnrolled}
+                >
+                  ⚙
+                </Button>
+              </th>
+            ))}
+            <th className="border px-2 py-1 bg-green-50" />
+          </tr>
         </thead>
         <tbody>
           {rows.map((row, rowIdx) => (
@@ -303,6 +310,14 @@ export function ExecutiveTable({
           ))}
         </tbody>
       </table>
+      {openDialogIndex !== null && (
+        <ExecutiveDetailDialog
+          plan={plan}
+          index={openDialogIndex}
+          open={openDialogIndex !== null}
+          onOpenChange={(open) => !open && setOpenDialogIndex(null)}
+        />
+      )}
     </div>
   );
 }
