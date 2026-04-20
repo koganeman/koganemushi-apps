@@ -29,6 +29,7 @@ const rates: RateSettings = {
 };
 
 function makeExec(overrides: Partial<ExecutiveInput> = {}): ExecutiveInput {
+  const regularSalary = overrides.regularSalary ?? 0;
   return {
     name: "",
     age: 0,
@@ -46,6 +47,9 @@ function makeExec(overrides: Partial<ExecutiveInput> = {}): ExecutiveInput {
     childcareHousehold: true,
     manualHealthInsurance: false,
     manualHealthInsuranceAmount: 0,
+    preChangeMonthlyRemuneration: 0,
+    postChangeMonthlyRemuneration: regularSalary / 12,
+    standardRemunerationChangeMonth: 1,
     ...overrides,
   };
 }
@@ -61,7 +65,6 @@ describe("シナリオ1: 年収1200万、45歳、子育て世帯", () => {
     childcareHousehold: true,
   });
   const result = calcExecutive(exec, rates, {
-    isGovernmentHealthInsurance: true,
     combineOtherSalary: false,
     executiveIndex: 0,
   });
@@ -145,7 +148,6 @@ describe("シナリオ2: 年収600万＋事前確定200万、55歳", () => {
     childcareHousehold: false,
   });
   const result = calcExecutive(exec, rates, {
-    isGovernmentHealthInsurance: true,
     combineOtherSalary: false,
     executiveIndex: 0,
   });
@@ -229,7 +231,6 @@ describe("シナリオ3: 年収3600万、60歳、配当300万", () => {
     childcareHousehold: true,
   });
   const result = calcExecutive(exec, rates, {
-    isGovernmentHealthInsurance: true,
     combineOtherSalary: false,
     executiveIndex: 0,
   });
@@ -307,7 +308,6 @@ describe("シナリオ4: 年収480万、35歳（介護なし）", () => {
     childcareHousehold: false,
   });
   const result = calcExecutive(exec, rates, {
-    isGovernmentHealthInsurance: true,
     combineOtherSalary: false,
     executiveIndex: 0,
   });
@@ -385,7 +385,6 @@ describe("シナリオ5: 複合ケース（高額＋事前確定＋配当＋他�
     childcareHousehold: true,
   });
   const result = calcExecutive(exec, rates, {
-    isGovernmentHealthInsurance: true,
     combineOtherSalary: false,
     executiveIndex: 0,
   });

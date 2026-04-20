@@ -11,7 +11,6 @@ export interface OptimizeContext {
   executives: ExecutiveInput[];
   comparisonExecutives: ExecutiveInput[];
   rates: RateSettings;
-  isGovernmentHealthInsurance: boolean;
   combineOtherSalaryForInsurance: boolean;
   corporateTaxParams: CorporateTaxParams;
   effectiveTaxRates: EffectiveTaxRates;
@@ -43,7 +42,6 @@ function calcNetIncome(
 ): number {
   const exec = { ...ctx.comparisonExecutives[0], ...mutated };
   return calcExecutive(exec, ctx.rates, {
-    isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
     taxYear: ctx.taxYear,
@@ -53,7 +51,6 @@ function calcNetIncome(
 function calcCombinedCFValue(ctx: OptimizeContext, mutated: ExecutiveInput): number {
   const exec = { ...ctx.comparisonExecutives[0], ...mutated };
   const result = calcExecutive(exec, ctx.rates, {
-    isGovernmentHealthInsurance: ctx.isGovernmentHealthInsurance,
     combineOtherSalary: ctx.combineOtherSalaryForInsurance,
     executiveIndex: 0,
     taxYear: ctx.taxYear,
