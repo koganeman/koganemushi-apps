@@ -26,8 +26,6 @@ export default function SimulationPage() {
   const {
     activeTab,
     setActiveTab,
-    governmentHealthInsurance,
-    setGovernmentHealthInsurance,
     combineOtherSalaryForInsurance,
     setCombineOtherSalaryForInsurance,
     transferCurrentToComparison,
@@ -37,8 +35,6 @@ export default function SimulationPage() {
     useShallow((s) => ({
       activeTab: s.activeTab,
       setActiveTab: s.setActiveTab,
-      governmentHealthInsurance: s.governmentHealthInsurance,
-      setGovernmentHealthInsurance: s.setGovernmentHealthInsurance,
       combineOtherSalaryForInsurance: s.combineOtherSalaryForInsurance,
       setCombineOtherSalaryForInsurance: s.setCombineOtherSalaryForInsurance,
       transferCurrentToComparison: s.transferCurrentToComparison,
@@ -79,13 +75,6 @@ export default function SimulationPage() {
             {/* グローバルフラグ */}
             <div className="flex items-center gap-6 px-2">
               <TaxYearSelector value={taxYear} onChange={setTaxYear} />
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={governmentHealthInsurance}
-                  onCheckedChange={(c) => setGovernmentHealthInsurance(!!c)}
-                />
-                政管健保（協会けんぽ）
-              </label>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={combineOtherSalaryForInsurance}
