@@ -275,12 +275,15 @@ function DividendSweepComment({
       </p>
       {(() => {
         const candidates = rows.filter(
-          (r) => r.netIncome >= baselineNet && r.combinedCF >= -500000
+          (r) => r.combinedCF > 0 && r.netIncome - baselineNet > 0
         );
         if (candidates.length === 0) return (
-          <p className="text-xs text-gray-500 pt-1">
-            ※ 手取り額が現状以上かつ合算CFの減少が50万円以下となる配分はありません。
-          </p>
+          <div className="bg-yellow-50 border border-yellow-300 rounded p-2 mt-1">
+            <p>
+              <span className="font-bold">推奨なし:</span>{" "}
+              合算CFと手取り額の両方が＋となる配分はありません。
+            </p>
+          </div>
         );
         const recommended = candidates.reduce((a, b) =>
           b.netIncome > a.netIncome ? b : a
@@ -295,8 +298,8 @@ function DividendSweepComment({
               — 手取り額は現状より
               <span className="font-bold text-green-700"> +{formatYen(recNetDiff)} </span>
               増加し、合算CF（差分）は
-              <span className={`font-bold ${recommended.combinedCF >= 0 ? "text-green-700" : "text-red-600"}`}>
-                {" "}{recommended.combinedCF >= 0 ? "+" : ""}{formatYen(recommended.combinedCF)}
+              <span className="font-bold text-green-700">
+                {" "}+{formatYen(recommended.combinedCF)}
               </span>
               です。
             </p>
@@ -305,7 +308,7 @@ function DividendSweepComment({
       })()}
       <p className="text-xs text-gray-500 pt-1">
         ※ 配当は給与所得控除や社会保険料の対象外ですが、配当控除が適用されます。
-        推奨は手取りが現状以上かつ合算CF減少が50万円以下の中で手取りが最大となる配分です。
+        推奨は合算CFと手取り額の両方が＋となる配分のうち手取りが最大となるものです。
       </p>
     </div>
   );
