@@ -26,7 +26,15 @@
       "Bash(taskkill:*)",
       "Bash(cmd.exe /c \"taskkill /pid 37128 /f\")",
       "Bash(cmd.exe /c \"taskkill /PID 37128 /F\")",
-      "Bash(powershell.exe -Command:*)"
+      "Bash(powershell.exe -Command:*)",
+      "Bash(yes \"No\")",
+      "mcp__mcp-registry__search_mcp_registry",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(claude mcp:*)",
+      "Bash(npx freee-mcp:*)",
+      "Bash(npm search:*)",
+      "WebFetch(domain:biz.moneyforward.com)"
     ]
   }
 }
