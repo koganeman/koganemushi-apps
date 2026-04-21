@@ -19,7 +19,7 @@ export const TOOLS: ToolInfo[] = [
     name: "法人成りシミュレーション",
     description: "個人事業主から法人化のシミュレーション",
     href: "/hojinnari",
-    status: "dev",
+    status: "active",
   },
   {
     id: "furusato-nouzei",
