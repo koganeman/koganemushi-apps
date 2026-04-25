@@ -48,6 +48,18 @@ export default function SimulationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* マニュアルリンク */}
+      <div className="bg-white border-b px-6 py-2 text-sm">
+        <a
+          href="https://peach-fin-48b.notion.site/34ded47bc57580c1b0cef0b4c80b3f0c?source=copy_link"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          役員報酬シミュレーション 操作マニュアル
+        </a>
+      </div>
+
       {/* タブナビゲーション */}
       <div className="bg-white border-b px-6 flex gap-0">
         {TAB_LABELS.map((tab) => (
