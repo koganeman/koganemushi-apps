@@ -3,7 +3,15 @@
 import { useRef, useCallback } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
-import { calcIndividual, calcPlan1, calcPlan2 } from "@/lib/hojinnari-calc";
+import {
+  calcIndividual,
+  calcPlan1,
+  calcPlan2,
+  calcCorporateTaxHojinnari,
+  calcBusinessTax,
+  calcSocialInsuranceIncome,
+} from "@/lib/hojinnari-calc";
+import type { HojinnariInput, HojinnariRates, PlanResult } from "@/types/hojinnari";
 import { formatYen } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,14 +46,71 @@ function fmtDiff(value: number): string {
   return formatYen(value);
 }
 
+type DecisionTotals = {
+  corporateExpense: number;
+  taxDeductible: number;
+  personalIncomeIncrease: number;
+};
+
+/**
+ * 決算対策を「法人成り後」の値に反映:
+ *   - 法人所得 = 法人所得 − 損金算入額（再計算で法人税・事業税が減少）
+ *   - 法人手取額 = 法人手取額 − 法人支出額 + (法人税・事業税の減少額)
+ *   - 個人手取額 = 個人手取額 + 個人手取り増加分
+ *   - 合算手取額 = 個人手取額 + 法人手取額（再計算後）
+ */
+function applyDecisionMeasures(
+  planResult: PlanResult,
+  totals: DecisionTotals,
+  input: HojinnariInput,
+  rates: HojinnariRates
+) {
+  const newCorporateIncome =
+    Math.floor(Math.max(0, planResult.corporateIncome - totals.taxDeductible) / 1000) * 1000;
+
+  const newSocialInsuranceIncome = input.isMedicalCorporation
+    ? calcSocialInsuranceIncome(newCorporateIncome, input.socialInsuranceMedicalRevenue, input.totalRevenue)
+    : 0;
+
+  const newCorporateTax = calcCorporateTaxHojinnari(newCorporateIncome, rates);
+  const newBusinessTax = calcBusinessTax(
+    newCorporateIncome,
+    rates,
+    input.isMedicalCorporation,
+    newSocialInsuranceIncome
+  );
+
+  const taxSavings =
+    planResult.corporateTax + planResult.corporateBusinessTax - (newCorporateTax + newBusinessTax);
+
+  const corporateNet = planResult.corporateRetained - totals.corporateExpense + taxSavings;
+  const personalNet = planResult.ownerNetIncome + totals.personalIncomeIncrease;
+  const combinedNet = personalNet + corporateNet;
+
+  return {
+    corporateIncome: newCorporateIncome,
+    corporateTax: newCorporateTax,
+    corporateBusinessTax: newBusinessTax,
+    corporateNet,
+    personalNet,
+    combinedNet,
+  };
+}
+
 function PlanTable({
   title,
   individual,
   planResult,
+  decisionTotals,
+  input,
+  rates,
 }: {
   title: string;
   individual: ReturnType<typeof calcIndividual>;
   planResult: ReturnType<typeof calcPlan1>;
+  decisionTotals: DecisionTotals;
+  input: HojinnariInput;
+  rates: HojinnariRates;
 }) {
   // 現状
   const curBusinessIncome = individual.businessIncome;
@@ -62,11 +127,14 @@ function PlanTable({
   const curPersonalNet = individual.netIncome;
   const curCorporateNet = 0;
 
-  // 法人成り後
+  // 決算対策を反映した値
+  const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
+
+  // 法人成り後（決算対策反映後）
   const aftBusinessIncome = planResult.individualBusinessIncome;
-  const aftCorporateIncome = planResult.corporateIncome;
+  const aftCorporateIncome = adj.corporateIncome;
   const aftSalaryIncome = planResult.corporateSalary;
-  const aftCorporateTax = planResult.corporateTax + planResult.corporateBusinessTax;
+  const aftCorporateTax = adj.corporateTax + adj.corporateBusinessTax;
   const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
   const aftBusinessTax = planResult.individualBusinessTax;
   const aftTaxTotal = aftCorporateTax + aftPersonalTax + aftBusinessTax;
@@ -74,9 +142,9 @@ function PlanTable({
   const aftSocialEmployer = planResult.employerSocialInsurance;
   const aftSocialTotal = planResult.totalSocialInsurance;
   const aftBurden = aftTaxTotal + aftSocialTotal;
-  const aftCombinedNet = planResult.combinedNetIncome;
-  const aftPersonalNet = planResult.ownerNetIncome;
-  const aftCorporateNet = planResult.corporateRetained;
+  const aftCombinedNet = adj.combinedNet;
+  const aftPersonalNet = adj.personalNet;
+  const aftCorporateNet = adj.corporateNet;
 
   const thCls = "py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400";
   const thLabelCls = `${thCls} text-left`;
@@ -236,22 +304,29 @@ function PlanComment({
   label,
   individual,
   planResult,
+  decisionTotals,
+  input,
+  rates,
 }: {
   label: string;
   individual: ReturnType<typeof calcIndividual>;
   planResult: ReturnType<typeof calcPlan1>;
+  decisionTotals: DecisionTotals;
+  input: HojinnariInput;
+  rates: HojinnariRates;
 }) {
+  const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
   const curNet = individual.netIncome;
-  const personalDiff = planResult.ownerNetIncome - curNet;
-  const combinedDiff = planResult.combinedNetIncome - curNet;
-  const corporateRetained = planResult.corporateRetained;
+  const personalDiff = adj.personalNet - curNet;
+  const combinedDiff = adj.combinedNet - curNet;
+  const corporateRetained = adj.corporateNet;
 
   // 内訳: 法人税・個人所得税・社会保険料の増減
   const curPersonalTax = individual.taxTotal;
   const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
   const personalTaxDiff = aftPersonalTax - curPersonalTax;
 
-  const corpTaxDiff = planResult.corporateTax + planResult.corporateBusinessTax;
+  const corpTaxDiff = adj.corporateTax + adj.corporateBusinessTax;
 
   const curSocialTotal = individual.nationalInsurance;
   const aftSocialTotal = planResult.ownerSocialInsurance + planResult.employerSocialInsurance;
@@ -330,15 +405,22 @@ function IncreaseChart({
   label,
   individual,
   planResult,
+  decisionTotals,
+  input,
+  rates,
 }: {
   label: string;
   individual: ReturnType<typeof calcIndividual>;
   planResult: ReturnType<typeof calcPlan1>;
+  decisionTotals: DecisionTotals;
+  input: HojinnariInput;
+  rates: HojinnariRates;
 }) {
+  const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
   const curNet = individual.netIncome;
-  const combinedDiff = planResult.combinedNetIncome - curNet;
-  const corporateDiff = planResult.corporateRetained;
-  const personalDiff = planResult.ownerNetIncome - curNet;
+  const combinedDiff = adj.combinedNet - curNet;
+  const corporateDiff = adj.corporateNet;
+  const personalDiff = adj.personalNet - curNet;
 
   const data = [
     { name: "合算手取り額", value: combinedDiff },
@@ -380,21 +462,48 @@ function SubPlanBlock({
   subTitle,
   individual,
   planResult,
+  decisionTotals,
+  input,
+  rates,
 }: {
   title: string;
   subTitle: string;
   individual: ReturnType<typeof calcIndividual>;
   planResult: ReturnType<typeof calcPlan1>;
+  decisionTotals: DecisionTotals;
+  input: HojinnariInput;
+  rates: HojinnariRates;
 }) {
   return (
     <div className="flex-1 min-w-[420px]">
       <div className="bg-yellow-50 border border-yellow-400 px-3 py-1 mb-2 text-sm font-bold">
         {title} — {subTitle}
       </div>
-      <PlanTable title="" individual={individual} planResult={planResult} />
-      <PlanComment label={subTitle} individual={individual} planResult={planResult} />
+      <PlanTable
+        title=""
+        individual={individual}
+        planResult={planResult}
+        decisionTotals={decisionTotals}
+        input={input}
+        rates={rates}
+      />
+      <PlanComment
+        label={subTitle}
+        individual={individual}
+        planResult={planResult}
+        decisionTotals={decisionTotals}
+        input={input}
+        rates={rates}
+      />
       <div className="mt-2">
-        <IncreaseChart label={subTitle} individual={individual} planResult={planResult} />
+        <IncreaseChart
+          label={subTitle}
+          individual={individual}
+          planResult={planResult}
+          decisionTotals={decisionTotals}
+          input={input}
+          rates={rates}
+        />
       </div>
     </div>
   );
@@ -424,6 +533,9 @@ export function HoukokushoSheet() {
     { corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 }
   );
   const hasDecisionMeasures = decisionTotals.corporateExpense > 0 || decisionTotals.personalIncomeIncrease > 0 || decisionTotals.hiddenAssetIncrease > 0;
+
+  // PLAN2 は「法人成り後・決算対策実施前」の数値を示すため、決算対策を反映しない
+  const emptyDecisionTotals = { corporateExpense: 0, taxDeductible: 0, personalIncomeIncrease: 0, hiddenAssetIncrease: 0 };
 
   // プラン1: 現在の入力値から計算
   const individual1 = calcIndividual(input, taxYear);
@@ -542,8 +654,24 @@ export function HoukokushoSheet() {
       <div className="print-page">
         <h3 className="font-bold text-sm border-b pb-1 mb-2">完全法人成り</h3>
         <div className="flex gap-6 flex-wrap">
-          <SubPlanBlock title="プラン1" subTitle="完全法人成り" individual={individual1} planResult={plan1Full} />
-          <SubPlanBlock title="プラン2" subTitle="完全法人成り" individual={individual2} planResult={plan2Full} />
+          <SubPlanBlock
+            title="プラン1"
+            subTitle="完全法人成り"
+            individual={individual1}
+            planResult={plan1Full}
+            decisionTotals={decisionTotals}
+            input={input}
+            rates={rates}
+          />
+          <SubPlanBlock
+            title="プラン2"
+            subTitle="完全法人成り"
+            individual={individual2}
+            planResult={plan2Full}
+            decisionTotals={emptyDecisionTotals}
+            input={p2Input}
+            rates={p2Rates}
+          />
         </div>
       </div>
 
@@ -551,8 +679,24 @@ export function HoukokushoSheet() {
       <div className="print-page">
         <h3 className="font-bold text-sm border-b pb-1 mb-2">マイクロ法人成り</h3>
         <div className="flex gap-6 flex-wrap">
-          <SubPlanBlock title="プラン1" subTitle="マイクロ法人成り" individual={individual1} planResult={plan1Micro} />
-          <SubPlanBlock title="プラン2" subTitle="マイクロ法人成り" individual={individual2} planResult={plan2Micro} />
+          <SubPlanBlock
+            title="プラン1"
+            subTitle="マイクロ法人成り"
+            individual={individual1}
+            planResult={plan1Micro}
+            decisionTotals={decisionTotals}
+            input={input}
+            rates={rates}
+          />
+          <SubPlanBlock
+            title="プラン2"
+            subTitle="マイクロ法人成り"
+            individual={individual2}
+            planResult={plan2Micro}
+            decisionTotals={emptyDecisionTotals}
+            input={p2Input}
+            rates={p2Rates}
+          />
         </div>
       </div>
 
