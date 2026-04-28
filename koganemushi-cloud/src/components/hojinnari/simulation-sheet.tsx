@@ -3,7 +3,6 @@
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import { calcIndividual, calcFamilyMemberTax } from "@/lib/hojinnari-calc";
-import { formatYen } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import type { FamilyMemberResult } from "@/types/hojinnari";
 import { SectionRow, DataRow, type ColConfig } from "./sim-table-cells";
@@ -21,23 +20,14 @@ interface HeaderProps {
   blueDeduction: number;
   ownerAge: number;
   hasSpouse: boolean;
-  childCount: 0 | 1 | 2;
   isChildcareHousehold: boolean;
   onBlueDeduction: (v: number) => void;
   onOwnerAge: (v: number) => void;
   onHasSpouse: (v: boolean) => void;
-  onChildCount: (v: 0 | 1 | 2) => void;
   onChildcareHousehold: (v: boolean) => void;
 }
 
 function SimHeader(p: HeaderProps) {
-  const handleChild1 = (checked: boolean) => {
-    p.onChildCount(checked ? Math.max(1, p.childCount) as 0 | 1 | 2 : 0);
-  };
-  const handleChild2 = (checked: boolean) => {
-    p.onChildCount(checked ? 2 : Math.min(1, p.childCount) as 0 | 1 | 2);
-  };
-
   return (
     <div className="bg-white rounded border p-3">
       <p className="text-xs text-gray-500 mb-2">
@@ -52,24 +42,6 @@ function SimHeader(p: HeaderProps) {
             className="mr-1"
           />
           配偶者
-        </label>
-        <label className="flex items-center gap-1">
-          <input
-            type="checkbox"
-            checked={p.childCount >= 1}
-            onChange={(e) => handleChild1(e.target.checked)}
-            className="mr-1"
-          />
-          子1
-        </label>
-        <label className="flex items-center gap-1">
-          <input
-            type="checkbox"
-            checked={p.childCount >= 2}
-            onChange={(e) => handleChild2(e.target.checked)}
-            className="mr-1"
-          />
-          子2
         </label>
         <div className="flex items-center gap-2 ml-4">
           <span className="text-gray-500">青色申告:</span>
@@ -119,12 +91,6 @@ function TableHead({ cols }: { cols: ColConfig }) {
         {cols.showSpouse && (
           <th className="py-1.5 px-2 text-center text-xs font-bold border-r w-32">配偶者</th>
         )}
-        {cols.showChild1 && (
-          <th className="py-1.5 px-2 text-center text-xs font-bold border-r w-32">子供1</th>
-        )}
-        {cols.showChild2 && (
-          <th className="py-1.5 px-2 text-center text-xs font-bold border-r w-32">子供2</th>
-        )}
         <th className="py-1.5 px-2 text-center text-xs font-bold w-32 bg-blue-100">合計</th>
       </tr>
     </thead>
@@ -134,46 +100,29 @@ function TableHead({ cols }: { cols: ColConfig }) {
 // ---- メインコンポーネント ----
 
 export function SimulationSheet() {
-  const { input, setInput, setSpouse, setChild } = useHojinnariStore(
+  const { input, setInput, setSpouse } = useHojinnariStore(
     useShallow((s) => ({
       input: s.input,
       setInput: s.setInput,
       setSpouse: s.setSpouse,
-      setChild: s.setChild,
     }))
   );
 
   const cols: ColConfig = {
     showSpouse: input.hasSpouse,
-    showChild1: input.childCount >= 1,
-    showChild2: input.childCount >= 2,
   };
 
   const taxYear = useHojinnariStore((s) => s.taxYear);
   const ownerResult = calcIndividual(input, taxYear);
-  // ゼロ値フォールバックで ?? を JSX 内で使わないようにする
   const isChildcare = input.isChildcareHousehold;
   const sr = input.hasSpouse
     ? calcFamilyMemberTax(input.spouse, isChildcare, taxYear)
     : ZERO_MEMBER;
-  const cr1 = input.childCount >= 1
-    ? calcFamilyMemberTax(input.children[0], isChildcare, taxYear)
-    : ZERO_MEMBER;
-  const cr2 = input.childCount >= 2
-    ? calcFamilyMemberTax(input.children[1], isChildcare, taxYear)
-    : ZERO_MEMBER;
 
-  const colCount =
-    2 +
-    (cols.showSpouse ? 1 : 0) +
-    (cols.showChild1 ? 1 : 0) +
-    (cols.showChild2 ? 1 : 0) +
-    1;
+  const colCount = 2 + (cols.showSpouse ? 1 : 0) + 1;
 
-  // 家族メンバー値のショートカット
+  // 配偶者入力値のショートカット
   const sp = input.spouse;
-  const c0 = input.children[0];
-  const c1 = input.children[1];
 
   return (
     <div className="p-4 space-y-4">
@@ -181,12 +130,10 @@ export function SimulationSheet() {
         blueDeduction={input.blueDeduction}
         ownerAge={input.ownerAge}
         hasSpouse={input.hasSpouse}
-        childCount={input.childCount}
         isChildcareHousehold={input.isChildcareHousehold}
         onBlueDeduction={(v) => setInput({ blueDeduction: v })}
         onOwnerAge={(v) => setInput({ ownerAge: v })}
         onHasSpouse={(v) => setInput({ hasSpouse: v })}
-        onChildCount={(v) => setInput({ childCount: v })}
         onChildcareHousehold={(v) => setInput({ isChildcareHousehold: v })}
       />
 
@@ -201,19 +148,16 @@ export function SimulationSheet() {
               label="年齢"
               ownerValue={input.ownerAge}
               spouseValue={sp.age}
-              child1Value={c0.age}
-              child2Value={c1.age}
               cols={cols}
+              hideTotal
               ownerOnChange={(v) => setInput({ ownerAge: v })}
               spouseOnChange={(v) => setSpouse({ age: v })}
-              child1OnChange={(v) => setChild(0, { age: v })}
-              child2OnChange={(v) => setChild(1, { age: v })}
             />
             <SectionRow label="▼ 収入" colCount={colCount} />
             <DataRow
               label="事業所得金額"
               ownerValue={input.businessIncome}
-              spouseValue={null} child1Value={null} child2Value={null}
+              spouseValue={null}
               totalValue={input.businessIncome}
               cols={cols}
               ownerOnChange={(v) => setInput({ businessIncome: v })}
@@ -221,75 +165,65 @@ export function SimulationSheet() {
             <DataRow
               label="青色申告特別控除"
               ownerValue={-input.blueDeduction}
-              spouseValue={null} child1Value={null} child2Value={null}
+              spouseValue={null}
               totalValue={-input.blueDeduction}
               cols={cols}
             />
             <DataRow
               label="事業所得（控除後）"
               ownerValue={ownerResult.adjustedIncome}
-              spouseValue={null} child1Value={null} child2Value={null}
+              spouseValue={null}
               totalValue={ownerResult.adjustedIncome}
               bold cols={cols}
             />
             <DataRow
-              label="給与収入"
+              label="青色事業専従者給与"
+              ownerValue={0}
+              spouseValue={input.spouseBusinessSalary}
+              totalValue={input.spouseBusinessSalary}
+              cols={cols}
+              spouseOnChange={(v) => setInput({ spouseBusinessSalary: v })}
+            />
+            <DataRow
+              label="給与収入（他社）"
               ownerValue={input.ownerSalaryIncome}
               spouseValue={sp.salaryIncome}
-              child1Value={c0.salaryIncome}
-              child2Value={c1.salaryIncome}
               cols={cols}
               ownerOnChange={(v) => setInput({ ownerSalaryIncome: v })}
               spouseOnChange={(v) => setSpouse({ salaryIncome: v })}
-              child1OnChange={(v) => setChild(0, { salaryIncome: v })}
-              child2OnChange={(v) => setChild(1, { salaryIncome: v })}
             />
             <DataRow
               label="給与所得金額"
               ownerValue={ownerResult.salaryAfterDeduction}
               spouseValue={sr.salaryAfterDeduction}
-              child1Value={cr1.salaryAfterDeduction}
-              child2Value={cr2.salaryAfterDeduction}
               cols={cols}
             />
             <DataRow
               label="年金収入"
               ownerValue={input.ownerPensionIncome}
               spouseValue={sp.pensionIncome}
-              child1Value={c0.pensionIncome}
-              child2Value={c1.pensionIncome}
               cols={cols}
               ownerOnChange={(v) => setInput({ ownerPensionIncome: v })}
               spouseOnChange={(v) => setSpouse({ pensionIncome: v })}
-              child1OnChange={(v) => setChild(0, { pensionIncome: v })}
-              child2OnChange={(v) => setChild(1, { pensionIncome: v })}
             />
             <DataRow
               label="年金雑所得"
               ownerValue={ownerResult.pensionAfterDeduction}
               spouseValue={sr.pensionAfterDeduction}
-              child1Value={cr1.pensionAfterDeduction}
-              child2Value={cr2.pensionAfterDeduction}
               cols={cols}
             />
             <DataRow
               label="他の所得金額"
               ownerValue={input.ownerOtherIncome}
               spouseValue={sp.otherIncome}
-              child1Value={c0.otherIncome}
-              child2Value={c1.otherIncome}
               cols={cols}
               ownerOnChange={(v) => setInput({ ownerOtherIncome: v })}
               spouseOnChange={(v) => setSpouse({ otherIncome: v })}
-              child1OnChange={(v) => setChild(0, { otherIncome: v })}
-              child2OnChange={(v) => setChild(1, { otherIncome: v })}
             />
             <DataRow
               label="所得金額（合計）"
               ownerValue={ownerResult.totalIncome}
               spouseValue={sr.totalIncome}
-              child1Value={cr1.totalIncome}
-              child2Value={cr2.totalIncome}
               bold cols={cols}
             />
 
@@ -298,40 +232,28 @@ export function SimulationSheet() {
               label="社会保険料控除額"
               ownerValue={input.ownerNationalInsurance}
               spouseValue={sp.socialInsurance}
-              child1Value={c0.socialInsurance}
-              child2Value={c1.socialInsurance}
               cols={cols}
               ownerOnChange={(v) => setInput({ ownerNationalInsurance: v })}
               spouseOnChange={(v) => setSpouse({ socialInsurance: v })}
-              child1OnChange={(v) => setChild(0, { socialInsurance: v })}
-              child2OnChange={(v) => setChild(1, { socialInsurance: v })}
             />
             <DataRow
               label="その他所得控除"
               ownerValue={input.ownerOtherDeductions}
               spouseValue={sp.otherDeductions}
-              child1Value={c0.otherDeductions}
-              child2Value={c1.otherDeductions}
               cols={cols}
               ownerOnChange={(v) => setInput({ ownerOtherDeductions: v })}
               spouseOnChange={(v) => setSpouse({ otherDeductions: v })}
-              child1OnChange={(v) => setChild(0, { otherDeductions: v })}
-              child2OnChange={(v) => setChild(1, { otherDeductions: v })}
             />
             <DataRow
               label="基礎控除"
               ownerValue={ownerResult.basicDeduction}
               spouseValue={sr.basicDeduction}
-              child1Value={cr1.basicDeduction}
-              child2Value={cr2.basicDeduction}
               cols={cols}
             />
             <DataRow
               label="所得控除合計"
               ownerValue={ownerResult.totalDeductions}
               spouseValue={sr.totalDeductions}
-              child1Value={cr1.totalDeductions}
-              child2Value={cr2.totalDeductions}
               bold cols={cols}
             />
 
@@ -340,38 +262,30 @@ export function SimulationSheet() {
               label="課税所得金額"
               ownerValue={ownerResult.taxableIncome}
               spouseValue={sr.taxableIncome}
-              child1Value={cr1.taxableIncome}
-              child2Value={cr2.taxableIncome}
               cols={cols}
             />
             <DataRow
               label="所得税"
               ownerValue={ownerResult.incomeTax}
               spouseValue={sr.incomeTax}
-              child1Value={cr1.incomeTax}
-              child2Value={cr2.incomeTax}
               cols={cols}
             />
             <DataRow
               label="住民税"
               ownerValue={ownerResult.residentTax}
               spouseValue={sr.residentTax}
-              child1Value={cr1.residentTax}
-              child2Value={cr2.residentTax}
               cols={cols}
             />
             <DataRow
               label="個人税金合計"
               ownerValue={ownerResult.taxTotal}
               spouseValue={sr.taxTotal}
-              child1Value={cr1.taxTotal}
-              child2Value={cr2.taxTotal}
               bold cols={cols}
             />
             <DataRow
               label="個人事業税"
               ownerValue={ownerResult.individualBusinessTax}
-              spouseValue={null} child1Value={null} child2Value={null}
+              spouseValue={null}
               totalValue={ownerResult.individualBusinessTax}
               cols={cols}
             />
@@ -381,16 +295,12 @@ export function SimulationSheet() {
               label="国保・健康保険"
               ownerValue={input.ownerNationalInsurance}
               spouseValue={sp.socialInsurance}
-              child1Value={c0.socialInsurance}
-              child2Value={c1.socialInsurance}
               cols={cols}
             />
             <DataRow
               label="社会保険計"
               ownerValue={input.ownerNationalInsurance}
               spouseValue={sp.socialInsurance}
-              child1Value={c0.socialInsurance}
-              child2Value={c1.socialInsurance}
               bold cols={cols}
             />
 
@@ -403,16 +313,12 @@ export function SimulationSheet() {
                 input.ownerNationalInsurance
               }
               spouseValue={(sr.taxTotal) + sp.socialInsurance}
-              child1Value={(cr1.taxTotal) + c0.socialInsurance}
-              child2Value={(cr2.taxTotal) + c1.socialInsurance}
               cols={cols}
             />
             <DataRow
               label="手取り額"
               ownerValue={ownerResult.netIncome}
               spouseValue={sr.netIncome}
-              child1Value={cr1.netIncome}
-              child2Value={cr2.netIncome}
               totalValue={ownerResult.combinedNetIncome}
               bold cols={cols}
             />

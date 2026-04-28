@@ -34,6 +34,9 @@ export const DEFAULT_HOJINNARI_RATES: HojinnariRates = {
   corporateTaxRate1: 0.15,
   corporateTaxRate2: 0.232,
   localCorpTaxRate: 0.104,
+  prefecturalTaxRate1: 0.01,
+  prefecturalTaxRate2: 0.018,
+  municipalTaxRate: 0.06,
   businessTaxRate1: 0.07,
   businessTaxRate2: 0.085,
   businessTaxRate3: 0.1,
@@ -58,8 +61,7 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
   // 家族構成
   hasSpouse: false,
   spouse: { ...EMPTY_FAMILY_MEMBER },
-  childCount: 0,
-  children: [{ ...EMPTY_FAMILY_MEMBER }, { ...EMPTY_FAMILY_MEMBER }],
+  spouseBusinessSalary: 0,
 
   // PLAN1: マイクロ法人成り
   plan1MicroRevenue: 0,
@@ -80,6 +82,14 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
 
   // 従業員
   employeeSalary: 0,
+
+  // 業種別国保パターン
+  useIndustryInsurance: false,
+  industryInsuranceMonthlyOwner: 0,
+  industryInsuranceMonthlySpouse: 0,
+
+  // 法人住民税 均等割
+  perCapitaLevy: 70000,
 };
 
 interface HojinnariState {
@@ -92,7 +102,6 @@ interface HojinnariState {
   reportPlan2Rates: HojinnariRates | null;
   setInput: (partial: Partial<HojinnariInput>) => void;
   setSpouse: (partial: Partial<FamilyMember>) => void;
-  setChild: (index: 0 | 1, partial: Partial<FamilyMember>) => void;
   setRates: (partial: Partial<HojinnariRates>) => void;
   setDecisionMeasure: (index: number, partial: Partial<DecisionMeasure>) => void;
   setActiveTab: (tab: HojinnariTab) => void;
@@ -122,13 +131,6 @@ export const useHojinnariStore = create<HojinnariState>()(
             spouse: { ...state.input.spouse, ...partial },
           },
         })),
-
-      setChild: (index, partial) =>
-        set((state) => {
-          const children = [...state.input.children] as [FamilyMember, FamilyMember];
-          children[index] = { ...children[index], ...partial };
-          return { input: { ...state.input, children } };
-        }),
 
       setRates: (partial) =>
         set((state) => ({ rates: { ...state.rates, ...partial } })),
@@ -171,6 +173,17 @@ export const useHojinnariStore = create<HojinnariState>()(
         reportPlan2Input: state.reportPlan2Input,
         reportPlan2Rates: state.reportPlan2Rates,
       }),
+      // 既存ユーザのlocalStorageに新フィールド（住民税率・均等割など）が
+      // 欠けている場合、デフォルト値で埋める
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<HojinnariState>;
+        return {
+          ...current,
+          ...p,
+          input: { ...current.input, ...(p.input ?? {}) },
+          rates: { ...current.rates, ...(p.rates ?? {}) },
+        };
+      },
     }
   )
 );

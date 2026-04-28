@@ -3,9 +3,11 @@
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import {
-  optimizePlan2Salary,
   calcPlan1,
+  calcPlan2,
   calcIndividual,
+  applyDecisionMeasures,
+  sumDecisionMeasures,
 } from "@/lib/hojinnari-calc";
 import { formatYen, parseYen } from "@/lib/format";
 import { Input } from "@/components/ui/input";
@@ -28,8 +30,14 @@ function YenInput({
 }
 
 export function OptimizationSheet() {
-  const { input, rates, setInput, taxYear } = useHojinnariStore(
-    useShallow((s) => ({ input: s.input, rates: s.rates, setInput: s.setInput, taxYear: s.taxYear }))
+  const { input, rates, setInput, taxYear, decisionMeasures } = useHojinnariStore(
+    useShallow((s) => ({
+      input: s.input,
+      rates: s.rates,
+      setInput: s.setInput,
+      taxYear: s.taxYear,
+      decisionMeasures: s.decisionMeasures,
+    }))
   );
 
   if (input.businessIncome <= 0) {
@@ -44,31 +52,84 @@ export function OptimizationSheet() {
   const individual = calcIndividual(input, taxYear);
   const currentNetIncome = individual.netIncome;
 
-  // PLAN1（完全法人成り）最適化: 役員報酬を変化させる
-  const plan2Points = optimizePlan2Salary(input, rates, 1000000, taxYear);
+  // 決算対策の合計値（シミュレーションタブで入力）
+  const decisionTotals = sumDecisionMeasures(decisionMeasures ?? []);
+  const hasDecisionMeasures =
+    decisionTotals.corporateExpense > 0 ||
+    decisionTotals.taxDeductible > 0 ||
+    decisionTotals.personalIncomeIncrease > 0;
 
-  // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる
+  const step = 1000000;
+
+  // PLAN1（完全法人成り）最適化: 役員報酬を変化させる + 決算対策反映
+  const plan2Points: Array<{
+    salary: number;
+    totalNetIncome: number;
+    ownerNetIncome: number;
+    corporateRetained: number;
+  }> = [];
+  for (let salary = 0; salary <= input.businessIncome; salary += step) {
+    const modified = { ...input, plan2Salary: salary };
+    const r = calcPlan2(modified, rates, taxYear);
+    const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);
+    plan2Points.push({
+      salary,
+      totalNetIncome: adj.combinedNet,
+      ownerNetIncome: adj.personalNet,
+      corporateRetained: adj.corporateNet,
+    });
+  }
+
+  // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる + 決算対策反映
   const plan1Points: Array<{
     salary: number;
     combinedNetIncome: number;
     ownerNetIncome: number;
     corporateRetained: number;
   }> = [];
-  const step = 1000000;
-  const microRevenue = input.plan1MicroRevenue;
   for (let sal = 0; sal <= input.businessIncome; sal += step) {
     const modified = { ...input, plan1MicroSalary: sal };
     const r = calcPlan1(modified, rates, taxYear);
+    const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);
     plan1Points.push({
       salary: sal,
-      combinedNetIncome: r.combinedNetIncome,
-      ownerNetIncome: r.ownerNetIncome,
-      corporateRetained: r.corporateRetained,
+      combinedNetIncome: adj.combinedNet,
+      ownerNetIncome: adj.personalNet,
+      corporateRetained: adj.corporateNet,
     });
   }
 
   return (
     <div className="p-4 space-y-4">
+      {/* 決算対策の反映状況 */}
+      <div
+        className={`rounded border p-3 text-xs ${
+          hasDecisionMeasures
+            ? "bg-green-50 border-green-300 text-green-900"
+            : "bg-gray-50 border-gray-200 text-gray-600"
+        }`}
+      >
+        {hasDecisionMeasures ? (
+          <div className="space-y-0.5">
+            <p className="font-bold">
+              シミュレーションタブの「決算対策」を反映した試算です
+            </p>
+            <p>
+              法人支出額 合計:{" "}
+              <span className="font-mono">{formatYen(decisionTotals.corporateExpense)}</span> /
+              損金算入額 合計:{" "}
+              <span className="font-mono">{formatYen(decisionTotals.taxDeductible)}</span> /
+              個人手取り増加 合計:{" "}
+              <span className="font-mono">{formatYen(decisionTotals.personalIncomeIncrease)}</span>
+            </p>
+          </div>
+        ) : (
+          <p>
+            決算対策は未入力です（対策を反映するにはシミュレーションタブの「法人成り後に実施する決算対策」に金額を入力してください）。
+          </p>
+        )}
+      </div>
+
       {/* PLAN1 完全法人成り 最適化 */}
       <div className="bg-white rounded border p-4 space-y-3">
         <h2 className="font-bold text-sm border-b pb-2">

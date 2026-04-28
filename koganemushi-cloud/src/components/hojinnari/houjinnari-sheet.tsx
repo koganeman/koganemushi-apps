@@ -116,6 +116,22 @@ export function HoujinnariSheet() {
             </InputRow>
           </div>
 
+          <h3 className="text-xs font-semibold text-gray-500 uppercase pt-2">法人住民税</h3>
+          <div className="space-y-2">
+            <InputRow label="都道府県民税率① (標準)">
+              <PercentInput value={rates.prefecturalTaxRate1} onChange={(v) => setRates({ prefecturalTaxRate1: v })} />
+            </InputRow>
+            <InputRow label="都道府県民税率② (超過・参考)">
+              <PercentInput value={rates.prefecturalTaxRate2} onChange={(v) => setRates({ prefecturalTaxRate2: v })} />
+            </InputRow>
+            <InputRow label="市町村民税率">
+              <PercentInput value={rates.municipalTaxRate} onChange={(v) => setRates({ municipalTaxRate: v })} />
+            </InputRow>
+            <InputRow label="均等割（年額）">
+              <YenInput value={input.perCapitaLevy} onChange={(v) => setInput({ perCapitaLevy: v })} />
+            </InputRow>
+          </div>
+
           <h3 className="text-xs font-semibold text-gray-500 uppercase pt-2">法人事業税</h3>
           <div className="space-y-2">
             <InputRow label="事業税率① (400万以下)">
@@ -340,13 +356,49 @@ export function HoujinnariSheet() {
                   <span className="text-gray-500 ml-1">円</span>
                   {input.isMedicalCorporation && (
                     <p className="text-gray-400 mt-0.5">
-                      ※医師会国保の場合は厚生年金分のみ。料率を適宜変更してください。
+                      ※業種別国保の場合は厚生年金分のみ。料率を適宜変更してください。
                     </p>
                   )}
                 </div>
               )}
             </div>
           </div>
+        </div>
+
+        {/* ---- 業種別国保パターン ---- */}
+        <div className="border-t pt-4 space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={input.useIndustryInsurance}
+              onChange={(e) => setInput({ useIndustryInsurance: e.target.checked })}
+              className="w-4 h-4"
+            />
+            <span className="font-semibold">業種別国保（健康保険のみ国保固定額・厚生年金は加入）</span>
+            <span className="text-xs text-gray-400">
+              （チェック時、健康保険・介護保険・支援金は0、月額固定の業種別国保を個人負担に加算）
+            </span>
+          </label>
+
+          {input.useIndustryInsurance && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pl-4 border-l-2 border-blue-200">
+              <InputRow label="事業主（役員）の業種別国保 月額">
+                <YenInput
+                  value={input.industryInsuranceMonthlyOwner}
+                  onChange={(v) => setInput({ industryInsuranceMonthlyOwner: v })}
+                />
+              </InputRow>
+              <InputRow label="配偶者の業種別国保 月額">
+                <YenInput
+                  value={input.industryInsuranceMonthlySpouse}
+                  onChange={(v) => setInput({ industryInsuranceMonthlySpouse: v })}
+                />
+              </InputRow>
+              <p className="xl:col-span-2 text-xs text-gray-500">
+                ※年額換算 = 月額 × 12。配偶者は法人給与 &gt; 0 のときに加算されます。
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

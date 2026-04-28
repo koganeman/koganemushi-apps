@@ -56,8 +56,10 @@ export interface HojinnariInput {
   // 家族構成
   hasSpouse: boolean;
   spouse: FamilyMember;
-  childCount: 0 | 1 | 2;
-  children: [FamilyMember, FamilyMember];
+  // 配偶者の青色事業専従者給与（事業主の事業から）。
+  // 事業所得(input.businessIncome)からは既に控除済として扱う。
+  // 法人成り(完全法人成り)時はこの金額を法人所得に加算する。
+  spouseBusinessSalary: number;
 
   // PLAN1: マイクロ法人成り
   plan1MicroRevenue: number;    // 法人に移転する売上
@@ -79,6 +81,13 @@ export interface HojinnariInput {
   // 従業員
   employeeSalary: number;  // 年間従業員給料額
 
+  // 業種別国保パターン（健保のみ国保固定額・厚年は通常加入）
+  useIndustryInsurance: boolean;
+  industryInsuranceMonthlyOwner: number;   // 事業主（役員）の業種別国保 月額
+  industryInsuranceMonthlySpouse: number;  // 配偶者の業種別国保 月額
+
+  // 法人住民税 均等割（年額・円、例: 70,000）
+  perCapitaLevy: number;
 }
 
 /** 料率・税率設定 */
@@ -93,6 +102,10 @@ export interface HojinnariRates {
   corporateTaxRate1: number;       // 法人税率① 800万以下（例: 0.15）
   corporateTaxRate2: number;       // 法人税率② 800万超（例: 0.23）
   localCorpTaxRate: number;        // 地方法人特別税率（例: 0.104）
+  // 法人住民税（法人税割）
+  prefecturalTaxRate1: number;     // 都道府県民税率①（標準・例: 0.01）
+  prefecturalTaxRate2: number;     // 都道府県民税率②（超過・参考表示用、例: 0.018）
+  municipalTaxRate: number;        // 市町村民税率（例: 0.06）
   // 事業税（一般）
   businessTaxRate1: number;        // 事業税率① 400万以下（例: 0.07）
   businessTaxRate2: number;        // 事業税率② 400〜800万（例: 0.085）
@@ -125,8 +138,11 @@ export interface IndividualResult {
   taxTotal: number;
   individualBusinessTax: number; // 個人事業税
   netIncome: number;
+  // 配偶者
+  spouseResult: FamilyMemberResult | null;     // 配偶者の計算結果（hasSpouse=falseのときnull）
+  spouseTaxDetail: TaxDetailBreakdown | null;  // 配偶者の計算明細
   // 家族合計
-  family: FamilyMemberResult[];  // 各家族メンバーの結果
+  family: FamilyMemberResult[];  // 各家族メンバーの結果（現状は配偶者のみ）
   combinedNetIncome: number;     // 家族合算手取り
   // 計算明細
   taxDetail: TaxDetailBreakdown;
@@ -146,10 +162,11 @@ export interface PlanResult {
   individualBusinessTax: number;       // 個人事業税
   individualTaxTotal: number;          // 個人税金合計
   // 社会保険
-  ownerSocialInsurance: number;        // 役員負担分（協会けんぽ）
-  employerSocialInsurance: number;     // 会社負担分（役員分）
-  employeeEmployerSocialInsurance: number; // 会社負担分（従業員分）
-  totalSocialInsurance: number;        // 社保計
+  ownerSocialInsurance: number;        // 役員（事業主）負担分
+  spouseEmployeeSocialInsurance: number; // 配偶者（従業員）負担分（法人成り後）
+  employerSocialInsurance: number;     // 会社負担分（役員＋配偶者）
+  employeeEmployerSocialInsurance: number; // 会社負担分（その他従業員分）
+  totalSocialInsurance: number;        // 社保計（個人＋会社、全員分）
   // 法人側
   corporateSalary: number;             // 役員報酬（法人が支払う）
   spouseSalary: number;                // 配偶者給与
@@ -163,6 +180,9 @@ export interface PlanResult {
   ownerNetIncome: number;              // 役員手取り
   corporateNetIncome: number;          // 法人手取り（内部留保）
   combinedNetIncome: number;           // 合算CF手取り（役員+法人）
+  // 配偶者（法人成り後・配偶者給与受取後）
+  spouseResult: FamilyMemberResult | null;     // 配偶者の計算結果
+  spouseTaxDetail: TaxDetailBreakdown | null;  // 配偶者の計算明細
   // 計算明細
   taxDetail: TaxDetailBreakdown;
   corpTaxDetail: CorpTaxDetailBreakdown;
@@ -223,7 +243,10 @@ export interface CorpTaxDetailBreakdown {
   corporateIncome: number;            // 法人所得（1,000円未満切り捨て後）
   // 法人税
   corporateTaxRate: string;           // 適用区分（"800万以下" or "800万超"）
-  corporateTax: number;               // 法人税額
+  corporateTaxBase: number;           // 法人税（地方法人税含む）
+  residentTax: number;                // 法人住民税（法人税割）
+  perCapitaLevy: number;              // 均等割
+  corporateTax: number;               // 法人税合計（=corporateTaxBase + residentTax + perCapitaLevy）
   // 法人事業税
   businessTax: number;                // 法人事業税
   // 内部留保

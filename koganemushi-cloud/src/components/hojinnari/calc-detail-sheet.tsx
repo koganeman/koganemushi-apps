@@ -147,6 +147,65 @@ function PersonalTaxDetailTable({
   );
 }
 
+/* ── 1b. 配偶者 Personal Tax Detail ── */
+
+function SpouseTaxDetailTable({
+  current,
+  plan1,
+  plan2,
+}: {
+  current: TaxDetailBreakdown;
+  plan1: TaxDetailBreakdown;
+  plan2: TaxDetailBreakdown;
+}) {
+  // 配偶者には事業所得・個人事業税がないので関連セクション/行を除外
+  const sections = personalTaxSections
+    .filter((s) => s.title !== "▼ 個人事業税")
+    .map((s) => ({
+      ...s,
+      rows: s.rows.filter((r) => r.key !== "businessIncome"),
+    }));
+  return (
+    <div>
+      <table className="w-full border-collapse text-[11px]">
+        <thead>
+          <tr>
+            <th className={thLabelCls} style={{ width: "180px" }}>
+              配偶者の個人所得税・住民税の計算明細
+            </th>
+            <th className={thCls}>現状</th>
+            <th className={thCls}>Plan1（完全法人成り）</th>
+            <th className={thCls}>Plan2（マイクロ法人）</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sections.map((section) => (
+            <Fragment key={section.title}>
+              <tr>
+                <td colSpan={4} className={sectionCls}>
+                  {section.title}
+                </td>
+              </tr>
+              {section.rows.map((row) => {
+                const labelCls = row.bold ? tdBoldLabel : tdLabel;
+                const valCls = row.bold ? tdBoldVal : tdVal;
+                return (
+                  <tr key={row.key}>
+                    <td className={labelCls}>{row.label}</td>
+                    <td className={valCls}>{formatTaxValue(row, current)}</td>
+                    <td className={valCls}>{formatTaxValue(row, plan2)}</td>
+                    <td className={valCls}>{formatTaxValue(row, plan1)}</td>
+                  </tr>
+                );
+              })}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /* ── 2. Corp Tax Detail ── */
 
 type CorpRow = {
@@ -165,17 +224,20 @@ const corpTaxSections: CorpSection[] = [
   {
     title: "▼ 法人所得",
     rows: [
-      { label: "法人売上", key: "revenue" },
+      { label: "法人所得（役員報酬支払前）", key: "revenue" },
       { label: "役員報酬＋配偶者給与", key: "salaries" },
       { label: "社保会社負担", key: "employerSocialInsurance" },
-      { label: "法人所得", key: "corporateIncome", bold: true },
+      { label: "法人所得（課税ベース）", key: "corporateIncome", bold: true },
     ],
   },
   {
     title: "▼ 法人税計算",
     rows: [
       { label: "適用区分", key: "corporateTaxRate", format: "string" },
-      { label: "法人税額", key: "corporateTax", bold: true },
+      { label: "法人税（地方法人税含む）", key: "corporateTaxBase" },
+      { label: "法人住民税（法人税割）", key: "residentTax" },
+      { label: "均等割", key: "perCapitaLevy" },
+      { label: "法人税合計", key: "corporateTax", bold: true },
       { label: "法人事業税", key: "businessTax", bold: true },
     ],
   },
@@ -343,6 +405,12 @@ export function CalcDetailSheet() {
   const plan1 = calcPlan1(input, rates, taxYear);
   const plan2 = calcPlan2(input, rates, taxYear);
 
+  const hasSpouseDetail =
+    input.hasSpouse &&
+    individual.spouseTaxDetail !== null &&
+    plan1.spouseTaxDetail !== null &&
+    plan2.spouseTaxDetail !== null;
+
   return (
     <div className="p-4 space-y-6">
       <PersonalTaxDetailTable
@@ -350,6 +418,13 @@ export function CalcDetailSheet() {
         plan1={plan1.taxDetail}
         plan2={plan2.taxDetail}
       />
+      {hasSpouseDetail && (
+        <SpouseTaxDetailTable
+          current={individual.spouseTaxDetail!}
+          plan1={plan1.spouseTaxDetail!}
+          plan2={plan2.spouseTaxDetail!}
+        />
+      )}
       <CorpTaxDetailTable
         plan1={plan1.corpTaxDetail}
         plan2={plan2.corpTaxDetail}

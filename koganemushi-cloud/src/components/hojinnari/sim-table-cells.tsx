@@ -17,8 +17,6 @@ export const SECTION_HEADER =
 // ---- 列表示設定 ----
 export interface ColConfig {
   showSpouse: boolean;
-  showChild1: boolean;
-  showChild2: boolean;
 }
 
 // ---- 基本入力コンポーネント ----
@@ -92,7 +90,7 @@ export function OwnerCell({
   );
 }
 
-// ---- オプション列セル（配偶者・子供） ----
+// ---- オプション列セル（配偶者） ----
 export function OptionalCell({
   value,
   onChange,
@@ -146,31 +144,24 @@ export interface DataRowProps {
   label: string;
   ownerValue: number;
   spouseValue?: number | null;
-  child1Value?: number | null;
-  child2Value?: number | null;
   totalValue?: number;
   bold?: boolean;
   cols: ColConfig;
+  /** 合計セルを空欄にする（年齢行などで合算が無意味な場合） */
+  hideTotal?: boolean;
   ownerOnChange?: (v: number) => void;
   spouseOnChange?: (v: number) => void;
-  child1OnChange?: (v: number) => void;
-  child2OnChange?: (v: number) => void;
 }
 
 function computeTotal(props: DataRowProps): number {
   if (props.totalValue !== undefined) { return props.totalValue; }
-  return (
-    props.ownerValue +
-    (props.spouseValue ?? 0) +
-    (props.child1Value ?? 0) +
-    (props.child2Value ?? 0)
-  );
+  return props.ownerValue + (props.spouseValue ?? 0);
 }
 
 export function DataRow(props: DataRowProps) {
   const {
-    label, ownerValue, spouseValue, child1Value, child2Value,
-    bold, cols, ownerOnChange, spouseOnChange, child1OnChange, child2OnChange,
+    label, ownerValue, spouseValue,
+    bold, cols, hideTotal, ownerOnChange, spouseOnChange,
   } = props;
   const total = computeTotal(props);
 
@@ -184,19 +175,11 @@ export function DataRow(props: DataRowProps) {
         show={cols.showSpouse}
         bold={bold}
       />
-      <OptionalCell
-        value={child1Value ?? null}
-        onChange={child1OnChange}
-        show={cols.showChild1}
-        bold={bold}
-      />
-      <OptionalCell
-        value={child2Value ?? null}
-        onChange={child2OnChange}
-        show={cols.showChild2}
-        bold={bold}
-      />
-      <TotalCell value={total} bold={bold} />
+      {hideTotal ? (
+        <td className={TOTAL_CELL}></td>
+      ) : (
+        <TotalCell value={total} bold={bold} />
+      )}
     </tr>
   );
 }

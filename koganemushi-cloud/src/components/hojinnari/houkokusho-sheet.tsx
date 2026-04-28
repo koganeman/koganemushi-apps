@@ -1,17 +1,16 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import {
   calcIndividual,
   calcPlan1,
   calcPlan2,
-  calcCorporateTaxHojinnari,
-  calcBusinessTax,
-  calcSocialInsuranceIncome,
+  applyDecisionMeasures,
+  type DecisionTotals,
 } from "@/lib/hojinnari-calc";
-import type { HojinnariInput, HojinnariRates, PlanResult } from "@/types/hojinnari";
+import type { HojinnariInput, HojinnariRates } from "@/types/hojinnari";
 import { formatYen } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,57 +45,6 @@ function fmtDiff(value: number): string {
   return formatYen(value);
 }
 
-type DecisionTotals = {
-  corporateExpense: number;
-  taxDeductible: number;
-  personalIncomeIncrease: number;
-};
-
-/**
- * 決算対策を「法人成り後」の値に反映:
- *   - 法人所得 = 法人所得 − 損金算入額（再計算で法人税・事業税が減少）
- *   - 法人手取額 = 法人手取額 − 法人支出額 + (法人税・事業税の減少額)
- *   - 個人手取額 = 個人手取額 + 個人手取り増加分
- *   - 合算手取額 = 個人手取額 + 法人手取額（再計算後）
- */
-function applyDecisionMeasures(
-  planResult: PlanResult,
-  totals: DecisionTotals,
-  input: HojinnariInput,
-  rates: HojinnariRates
-) {
-  const newCorporateIncome =
-    Math.floor(Math.max(0, planResult.corporateIncome - totals.taxDeductible) / 1000) * 1000;
-
-  const newSocialInsuranceIncome = input.isMedicalCorporation
-    ? calcSocialInsuranceIncome(newCorporateIncome, input.socialInsuranceMedicalRevenue, input.totalRevenue)
-    : 0;
-
-  const newCorporateTax = calcCorporateTaxHojinnari(newCorporateIncome, rates);
-  const newBusinessTax = calcBusinessTax(
-    newCorporateIncome,
-    rates,
-    input.isMedicalCorporation,
-    newSocialInsuranceIncome
-  );
-
-  const taxSavings =
-    planResult.corporateTax + planResult.corporateBusinessTax - (newCorporateTax + newBusinessTax);
-
-  const corporateNet = planResult.corporateRetained - totals.corporateExpense + taxSavings;
-  const personalNet = planResult.ownerNetIncome + totals.personalIncomeIncrease;
-  const combinedNet = personalNet + corporateNet;
-
-  return {
-    corporateIncome: newCorporateIncome,
-    corporateTax: newCorporateTax,
-    corporateBusinessTax: newBusinessTax,
-    corporateNet,
-    personalNet,
-    combinedNet,
-  };
-}
-
 function PlanTable({
   title,
   individual,
@@ -104,6 +52,7 @@ function PlanTable({
   decisionTotals,
   input,
   rates,
+  combineSpouse,
 }: {
   title: string;
   individual: ReturnType<typeof calcIndividual>;
@@ -111,40 +60,45 @@ function PlanTable({
   decisionTotals: DecisionTotals;
   input: HojinnariInput;
   rates: HojinnariRates;
+  combineSpouse: boolean;
 }) {
-  // 現状
+  const useSpouse = combineSpouse && input.hasSpouse;
+  const curSpouse = useSpouse ? individual.spouseResult : null;
+  const aftSpouse = useSpouse ? planResult.spouseResult : null;
+
+  // 現状（事業主＋必要に応じて配偶者）
   const curBusinessIncome = individual.businessIncome;
-  const curSalaryIncome = 0; // 個人事業主は給与収入なし（法人からの給与はない）
+  const curSalaryIncome = 0 + (curSpouse?.salaryIncome ?? 0);
   const curCorporateTax = 0;
-  const curPersonalTax = individual.taxTotal; // 所得税+住民税
+  const curPersonalTax = individual.taxTotal + (curSpouse?.taxTotal ?? 0); // 所得税+住民税
   const curBusinessTax = individual.individualBusinessTax;
   const curTaxTotal = curCorporateTax + curPersonalTax + curBusinessTax;
-  const curSocialIndividual = individual.nationalInsurance;
+  const curSocialIndividual = individual.nationalInsurance + (curSpouse?.socialInsurance ?? 0);
   const curSocialEmployer = 0;
   const curSocialTotal = curSocialIndividual + curSocialEmployer;
   const curBurden = curTaxTotal + curSocialTotal;
-  const curCombinedNet = individual.netIncome;
-  const curPersonalNet = individual.netIncome;
+  const curCombinedNet = individual.netIncome + (curSpouse?.netIncome ?? 0);
+  const curPersonalNet = individual.netIncome + (curSpouse?.netIncome ?? 0);
   const curCorporateNet = 0;
 
   // 決算対策を反映した値
   const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
 
-  // 法人成り後（決算対策反映後）
+  // 法人成り後（決算対策反映後）。配偶者合算時は配偶者の値を加算
   const aftBusinessIncome = planResult.individualBusinessIncome;
   const aftCorporateIncome = adj.corporateIncome;
-  const aftSalaryIncome = planResult.corporateSalary;
+  const aftSalaryIncome = planResult.corporateSalary + (aftSpouse?.salaryIncome ?? 0);
   const aftCorporateTax = adj.corporateTax + adj.corporateBusinessTax;
-  const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
+  const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax + (aftSpouse?.taxTotal ?? 0);
   const aftBusinessTax = planResult.individualBusinessTax;
   const aftTaxTotal = aftCorporateTax + aftPersonalTax + aftBusinessTax;
-  const aftSocialIndividual = planResult.ownerSocialInsurance;
+  const aftSocialIndividual = planResult.ownerSocialInsurance + (aftSpouse?.socialInsurance ?? 0);
   const aftSocialEmployer = planResult.employerSocialInsurance;
-  const aftSocialTotal = planResult.totalSocialInsurance;
+  const aftSocialTotal = aftSocialIndividual + aftSocialEmployer;
   const aftBurden = aftTaxTotal + aftSocialTotal;
-  const aftCombinedNet = adj.combinedNet;
-  const aftPersonalNet = adj.personalNet;
+  const aftPersonalNet = adj.personalNet + (aftSpouse?.netIncome ?? 0);
   const aftCorporateNet = adj.corporateNet;
+  const aftCombinedNet = adj.combinedNet + (aftSpouse?.netIncome ?? 0);
 
   const thCls = "py-1.5 px-2 text-right text-[11px] font-bold text-white bg-[#1f3f7a] border border-gray-400";
   const thLabelCls = `${thCls} text-left`;
@@ -307,6 +261,7 @@ function PlanComment({
   decisionTotals,
   input,
   rates,
+  combineSpouse,
 }: {
   label: string;
   individual: ReturnType<typeof calcIndividual>;
@@ -314,22 +269,31 @@ function PlanComment({
   decisionTotals: DecisionTotals;
   input: HojinnariInput;
   rates: HojinnariRates;
+  combineSpouse: boolean;
 }) {
   const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
-  const curNet = individual.netIncome;
-  const personalDiff = adj.personalNet - curNet;
-  const combinedDiff = adj.combinedNet - curNet;
+  const useSpouse = combineSpouse && input.hasSpouse;
+  const curSpouse = useSpouse ? individual.spouseResult : null;
+  const aftSpouse = useSpouse ? planResult.spouseResult : null;
+
+  const curNet = individual.netIncome + (curSpouse?.netIncome ?? 0);
+  const personalNetAfter = adj.personalNet + (aftSpouse?.netIncome ?? 0);
+  const combinedNetAfter = adj.combinedNet + (aftSpouse?.netIncome ?? 0);
+  const personalDiff = personalNetAfter - curNet;
+  const combinedDiff = combinedNetAfter - curNet;
   const corporateRetained = adj.corporateNet;
 
   // 内訳: 法人税・個人所得税・社会保険料の増減
-  const curPersonalTax = individual.taxTotal;
-  const aftPersonalTax = planResult.individualIncomeTax + planResult.individualResidentTax;
+  const curPersonalTax = individual.taxTotal + (curSpouse?.taxTotal ?? 0);
+  const aftPersonalTax =
+    planResult.individualIncomeTax + planResult.individualResidentTax + (aftSpouse?.taxTotal ?? 0);
   const personalTaxDiff = aftPersonalTax - curPersonalTax;
 
   const corpTaxDiff = adj.corporateTax + adj.corporateBusinessTax;
 
-  const curSocialTotal = individual.nationalInsurance;
-  const aftSocialTotal = planResult.ownerSocialInsurance + planResult.employerSocialInsurance;
+  const curSocialTotal = individual.nationalInsurance + (curSpouse?.socialInsurance ?? 0);
+  const aftSocialTotal =
+    planResult.ownerSocialInsurance + planResult.employerSocialInsurance + (aftSpouse?.socialInsurance ?? 0);
   const socialDiff = aftSocialTotal - curSocialTotal;
 
   const businessTaxDiff = planResult.individualBusinessTax - individual.individualBusinessTax;
@@ -408,6 +372,7 @@ function IncreaseChart({
   decisionTotals,
   input,
   rates,
+  combineSpouse,
 }: {
   label: string;
   individual: ReturnType<typeof calcIndividual>;
@@ -415,12 +380,19 @@ function IncreaseChart({
   decisionTotals: DecisionTotals;
   input: HojinnariInput;
   rates: HojinnariRates;
+  combineSpouse: boolean;
 }) {
   const adj = applyDecisionMeasures(planResult, decisionTotals, input, rates);
-  const curNet = individual.netIncome;
-  const combinedDiff = adj.combinedNet - curNet;
+  const useSpouse = combineSpouse && input.hasSpouse;
+  const curSpouse = useSpouse ? individual.spouseResult : null;
+  const aftSpouse = useSpouse ? planResult.spouseResult : null;
+
+  const curNet = individual.netIncome + (curSpouse?.netIncome ?? 0);
+  const personalNetAfter = adj.personalNet + (aftSpouse?.netIncome ?? 0);
+  const combinedNetAfter = adj.combinedNet + (aftSpouse?.netIncome ?? 0);
+  const combinedDiff = combinedNetAfter - curNet;
   const corporateDiff = adj.corporateNet;
-  const personalDiff = adj.personalNet - curNet;
+  const personalDiff = personalNetAfter - curNet;
 
   const data = [
     { name: "合算手取り額", value: combinedDiff },
@@ -465,6 +437,7 @@ function SubPlanBlock({
   decisionTotals,
   input,
   rates,
+  combineSpouse,
 }: {
   title: string;
   subTitle: string;
@@ -473,6 +446,7 @@ function SubPlanBlock({
   decisionTotals: DecisionTotals;
   input: HojinnariInput;
   rates: HojinnariRates;
+  combineSpouse: boolean;
 }) {
   return (
     <div className="flex-1 min-w-[420px]">
@@ -486,6 +460,7 @@ function SubPlanBlock({
         decisionTotals={decisionTotals}
         input={input}
         rates={rates}
+        combineSpouse={combineSpouse}
       />
       <PlanComment
         label={subTitle}
@@ -494,6 +469,7 @@ function SubPlanBlock({
         decisionTotals={decisionTotals}
         input={input}
         rates={rates}
+        combineSpouse={combineSpouse}
       />
       <div className="mt-2">
         <IncreaseChart
@@ -503,6 +479,7 @@ function SubPlanBlock({
           decisionTotals={decisionTotals}
           input={input}
           rates={rates}
+          combineSpouse={combineSpouse}
         />
       </div>
     </div>
@@ -521,6 +498,11 @@ export function HoukokushoSheet() {
       taxYear: s.taxYear,
     }))
   );
+
+  // 配偶者合算トグル: 配偶者がいる場合にON可、現状/法人成り後の各値に配偶者の所得・税・社保・手取りを加算
+  const [combineSpouse, setCombineSpouse] = useState(false);
+  const p2HasSpouse = (reportPlan2Input ?? input).hasSpouse;
+  const showSpouseToggle = input.hasSpouse || p2HasSpouse;
 
   // 決算対策の合計
   const decisionTotals = (decisionMeasures ?? []).reduce(
@@ -648,6 +630,29 @@ export function HoukokushoSheet() {
         <div className="text-xs text-gray-600 border border-gray-300 rounded px-2 py-1">
           ● 円単位
         </div>
+        {showSpouseToggle && (
+          <div className="ml-auto flex items-center gap-1 text-xs no-print">
+            <span className="text-gray-500">表示:</span>
+            <div className="inline-flex border border-gray-300 rounded overflow-hidden">
+              <button
+                onClick={() => setCombineSpouse(false)}
+                className={`px-2 py-1 ${
+                  !combineSpouse ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                事業主のみ
+              </button>
+              <button
+                onClick={() => setCombineSpouse(true)}
+                className={`px-2 py-1 ${
+                  combineSpouse ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                配偶者合算
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 完全法人成り（1ページ目） */}
@@ -662,6 +667,7 @@ export function HoukokushoSheet() {
             decisionTotals={decisionTotals}
             input={input}
             rates={rates}
+            combineSpouse={combineSpouse}
           />
           <SubPlanBlock
             title="プラン2"
@@ -671,6 +677,7 @@ export function HoukokushoSheet() {
             decisionTotals={emptyDecisionTotals}
             input={p2Input}
             rates={p2Rates}
+            combineSpouse={combineSpouse}
           />
         </div>
       </div>
@@ -687,6 +694,7 @@ export function HoukokushoSheet() {
             decisionTotals={decisionTotals}
             input={input}
             rates={rates}
+            combineSpouse={combineSpouse}
           />
           <SubPlanBlock
             title="プラン2"
@@ -696,6 +704,7 @@ export function HoukokushoSheet() {
             decisionTotals={emptyDecisionTotals}
             input={p2Input}
             rates={p2Rates}
+            combineSpouse={combineSpouse}
           />
         </div>
       </div>
