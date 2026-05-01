@@ -790,8 +790,9 @@ export function calcPlan1(
 
 /**
  * 法人成り後の配偶者計算用ヘルパー。
- * 給与収入は法人からの給与のみで計算（既存の給与収入は使わない）。
- * 配偶者の社保は呼び出し側で上書きする（社保上書き値を渡せばそれを使う）。
+ * 給与収入は法人からの給与のみで計算（既存の給与収入・国保は引き継がない）。
+ * - 配偶者が法人給与を受け取る場合: 社保（厚年＋健保 or 業種別国保）を上書きで渡す
+ * - 受け取らない場合: 役員（事業主）が社保加入のため配偶者は被扶養者扱い → 社保=0
  */
 function calcSpouseWithCorporateSalary(
   input: HojinnariInput,
@@ -805,8 +806,9 @@ function calcSpouseWithCorporateSalary(
     ...input.spouse,
     // 法人成り後は法人からの給与のみ（既存給与は加算しない）
     salaryIncome: corporateSpouseSalary,
-    // 法人成り後の社保（厚年＋健保 or 業種別国保）。null の場合は input 値を使用
-    socialInsurance: spouseSocialInsuranceOverride ?? input.spouse.socialInsurance,
+    // 法人成り後は現状の国保(input.spouse.socialInsurance)を引き継がない。
+    // 上書き値があれば社保（法人社保）、なければ 0（被扶養者）。
+    socialInsurance: spouseSocialInsuranceOverride ?? 0,
   };
   return calcFamilyMemberTaxWithDetail(adjustedSpouse, isChildcareHousehold, taxYear);
 }

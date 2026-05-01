@@ -108,6 +108,19 @@ interface HojinnariState {
   setTaxYear: (taxYear: TaxYear) => void;
   savePlan1AsPlan2: () => void;
   copyReportPlan1ToPlan2: () => void;
+  /** インポートしたJSONデータでストアを上書き（不足フィールドはデフォルトで補完） */
+  loadFromJson: (data: HojinnariExportData) => void;
+}
+
+/** エクスポート/インポート用のデータ形式 */
+export interface HojinnariExportData {
+  version: number;
+  input?: HojinnariInput;
+  rates?: HojinnariRates;
+  decisionMeasures?: DecisionMeasure[];
+  taxYear?: TaxYear;
+  reportPlan2Input?: HojinnariInput | null;
+  reportPlan2Rates?: HojinnariRates | null;
 }
 
 export const useHojinnariStore = create<HojinnariState>()(
@@ -154,6 +167,22 @@ export const useHojinnariStore = create<HojinnariState>()(
             plan2Salary: state.input.plan1MicroSalary,
             plan2SpouseSalary: state.input.plan1SpouseSalary,
           },
+        })),
+
+      loadFromJson: (data) =>
+        set((state) => ({
+          input: { ...DEFAULT_HOJINNARI_INPUT, ...(data.input ?? {}) },
+          rates: { ...DEFAULT_HOJINNARI_RATES, ...(data.rates ?? {}) },
+          decisionMeasures: data.decisionMeasures
+            ? data.decisionMeasures.map((m) => ({ ...m }))
+            : state.decisionMeasures,
+          taxYear: (data.taxYear ?? state.taxYear) as TaxYear,
+          reportPlan2Input: data.reportPlan2Input
+            ? { ...DEFAULT_HOJINNARI_INPUT, ...data.reportPlan2Input }
+            : null,
+          reportPlan2Rates: data.reportPlan2Rates
+            ? { ...DEFAULT_HOJINNARI_RATES, ...data.reportPlan2Rates }
+            : null,
         })),
 
       // 報告書: プラン1の現在の入力値・料率をプラン2にスナップショット保存

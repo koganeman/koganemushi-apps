@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -40,6 +41,9 @@ export function OptimizationSheet() {
     }))
   );
 
+  // 配偶者合算トグル（配偶者がいる場合のみ有効）
+  const [combineSpouse, setCombineSpouse] = useState(false);
+
   if (input.businessIncome <= 0) {
     return (
       <div className="p-8 text-center text-gray-500 text-sm">
@@ -48,9 +52,11 @@ export function OptimizationSheet() {
     );
   }
 
-  // 現在の個人手取額
+  // 現状（個人事業主）の手取り
   const individual = calcIndividual(input, taxYear);
-  const currentNetIncome = individual.netIncome;
+  const useSpouse = combineSpouse && input.hasSpouse;
+  const currentSpouseNet = useSpouse ? (individual.spouseResult?.netIncome ?? 0) : 0;
+  const currentNetIncome = individual.netIncome + currentSpouseNet;
 
   // 決算対策の合計値（シミュレーションタブで入力）
   const decisionTotals = sumDecisionMeasures(decisionMeasures ?? []);
@@ -61,7 +67,7 @@ export function OptimizationSheet() {
 
   const step = 1000000;
 
-  // PLAN1（完全法人成り）最適化: 役員報酬を変化させる + 決算対策反映
+  // PLAN1（完全法人成り）最適化: 役員報酬を変化させる + 決算対策反映 + 配偶者合算
   const plan2Points: Array<{
     salary: number;
     totalNetIncome: number;
@@ -72,15 +78,16 @@ export function OptimizationSheet() {
     const modified = { ...input, plan2Salary: salary };
     const r = calcPlan2(modified, rates, taxYear);
     const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);
+    const spouseNet = useSpouse ? (r.spouseResult?.netIncome ?? 0) : 0;
     plan2Points.push({
       salary,
-      totalNetIncome: adj.combinedNet,
-      ownerNetIncome: adj.personalNet,
+      totalNetIncome: adj.combinedNet + spouseNet,
+      ownerNetIncome: adj.personalNet + spouseNet,
       corporateRetained: adj.corporateNet,
     });
   }
 
-  // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる + 決算対策反映
+  // PLAN2（マイクロ法人成り）最適化: 法人移転売上は固定、役員報酬を変化させる + 決算対策反映 + 配偶者合算
   const plan1Points: Array<{
     salary: number;
     combinedNetIncome: number;
@@ -91,16 +98,132 @@ export function OptimizationSheet() {
     const modified = { ...input, plan1MicroSalary: sal };
     const r = calcPlan1(modified, rates, taxYear);
     const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);
+    const spouseNet = useSpouse ? (r.spouseResult?.netIncome ?? 0) : 0;
     plan1Points.push({
       salary: sal,
-      combinedNetIncome: adj.combinedNet,
-      ownerNetIncome: adj.personalNet,
+      combinedNetIncome: adj.combinedNet + spouseNet,
+      ownerNetIncome: adj.personalNet + spouseNet,
       corporateRetained: adj.corporateNet,
     });
   }
 
+  // PDF出力（houkokusho-sheet と同じパターン）
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useCallback(() => {
+    const el = printRef.current;
+    if (!el) return;
+
+    const pages = el.querySelectorAll(".print-page");
+    if (pages.length === 0) return;
+
+    const header = el.querySelector(".flex.items-center.gap-4.bg-white");
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    if (!doc) { document.body.removeChild(iframe); return; }
+
+    const styles = Array.from(document.styleSheets).map((ss) => {
+      try { return Array.from(ss.cssRules).map((r) => r.cssText).join("\n"); }
+      catch { return ""; }
+    }).join("\n");
+
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><style>
+      ${styles}
+      @page { margin: 5mm; size: A4 landscape; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { margin: 0; padding: 0; font-size: 9px; }
+      .no-print { display: none !important; }
+      .page { page-break-after: always; padding: 4px; transform: scale(0.78); transform-origin: top left; width: 128%; }
+      .page:last-child { page-break-after: avoid; }
+      td, th { padding: 1px 3px; }
+      h2 { font-size: 11px; margin: 0 0 2px; }
+      h3 { font-size: 10px; margin: 0 0 2px; }
+    </style></head><body>`);
+
+    pages.forEach((page) => {
+      const clone = page.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll("input").forEach((inp) => {
+        const span = document.createElement("span");
+        span.textContent = inp.value;
+        span.style.fontWeight = "bold";
+        inp.replaceWith(span);
+      });
+      const headerClone = header?.cloneNode(true) as HTMLElement | undefined;
+      if (headerClone) {
+        headerClone.querySelectorAll(".no-print").forEach((n) => n.remove());
+      }
+      const wrapper = document.createElement("div");
+      wrapper.className = "page";
+      if (headerClone) wrapper.appendChild(headerClone);
+      wrapper.appendChild(clone);
+      doc.body.appendChild(wrapper);
+    });
+
+    doc.write("</body></html>");
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 500);
+  }, []);
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4" ref={printRef}>
+      {/* ヘッダー（PDF出力ボタン＋配偶者合算トグル） */}
+      <div className="flex items-center gap-4 bg-white rounded border p-3">
+        <h2 className="font-bold text-sm">最適化シミュレーション</h2>
+        <div className="flex items-center gap-2 no-print">
+          <button
+            onClick={handlePrint}
+            className="text-xs border border-green-500 text-green-700 rounded px-3 py-1 hover:bg-green-50 transition-colors"
+          >
+            PDF出力
+          </button>
+        </div>
+        {input.hasSpouse && (
+          <div className="ml-auto flex items-center gap-1 text-xs no-print">
+            <span className="text-gray-500">表示:</span>
+            <div className="inline-flex border border-gray-300 rounded overflow-hidden">
+              <button
+                onClick={() => setCombineSpouse(false)}
+                className={`px-2 py-1 ${
+                  !combineSpouse ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                事業主のみ
+              </button>
+              <button
+                onClick={() => setCombineSpouse(true)}
+                className={`px-2 py-1 ${
+                  combineSpouse ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                配偶者合算
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 配偶者合算モード説明（PDF時は非表示） */}
+      {input.hasSpouse && (
+        <div className="text-xs text-gray-500 px-1 no-print">
+          {combineSpouse
+            ? "（個人手取り・合算CFに配偶者の手取りを加算）"
+            : "（事業主の手取りのみで試算）"}
+        </div>
+      )}
+
       {/* 決算対策の反映状況 */}
       <div
         className={`rounded border p-3 text-xs ${
@@ -131,7 +254,7 @@ export function OptimizationSheet() {
       </div>
 
       {/* PLAN1 完全法人成り 最適化 */}
-      <div className="bg-white rounded border p-4 space-y-3">
+      <div className="print-page bg-white rounded border p-4 space-y-3">
         <h2 className="font-bold text-sm border-b pb-2">
           <span className="inline-block bg-orange-500 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN1</span>
           完全法人成り — 役員報酬の最適化
@@ -142,7 +265,9 @@ export function OptimizationSheet() {
 
         <div className="flex flex-wrap gap-4 items-end mb-2">
           <div>
-            <p className="text-xs text-gray-500">現在の個人手取額</p>
+            <p className="text-xs text-gray-500">
+              現在の{useSpouse ? "個人＋配偶者" : "個人"}手取額
+            </p>
             <p className="text-xl font-bold text-gray-700">{formatYen(currentNetIncome)}</p>
           </div>
         </div>
@@ -241,7 +366,7 @@ export function OptimizationSheet() {
       </div>
 
       {/* PLAN2 マイクロ法人成り 最適化 */}
-      <div className="bg-white rounded border p-4 space-y-3">
+      <div className="print-page bg-white rounded border p-4 space-y-3">
         <h2 className="font-bold text-sm border-b pb-2">
           <span className="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded mr-2">PLAN2</span>
           マイクロ法人成り — 移転売上の最適化
@@ -252,7 +377,9 @@ export function OptimizationSheet() {
 
         <div className="flex flex-wrap gap-4 items-end mb-2">
           <div>
-            <p className="text-xs text-gray-500">現在の個人手取額</p>
+            <p className="text-xs text-gray-500">
+              現在の{useSpouse ? "個人＋配偶者" : "個人"}手取額
+            </p>
             <p className="text-xl font-bold text-gray-700">{formatYen(currentNetIncome)}</p>
           </div>
           <div>

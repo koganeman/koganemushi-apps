@@ -176,14 +176,16 @@ export function SimulationSheet() {
               totalValue={ownerResult.adjustedIncome}
               bold cols={cols}
             />
-            <DataRow
-              label="青色事業専従者給与"
-              ownerValue={0}
-              spouseValue={input.spouseBusinessSalary}
-              totalValue={input.spouseBusinessSalary}
-              cols={cols}
-              spouseOnChange={(v) => setInput({ spouseBusinessSalary: v })}
-            />
+            {cols.showSpouse && (
+              <DataRow
+                label="青色事業専従者給与"
+                ownerValue={0}
+                spouseValue={input.spouseBusinessSalary}
+                totalValue={input.spouseBusinessSalary}
+                cols={cols}
+                spouseOnChange={(v) => setInput({ spouseBusinessSalary: v })}
+              />
+            )}
             <DataRow
               label="給与収入（他社）"
               ownerValue={input.ownerSalaryIncome}
