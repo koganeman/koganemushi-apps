@@ -37,6 +37,23 @@ interface SimulationState {
   setTaxYear: (taxYear: TaxYear) => void;
   setPlan1Label: (label: string) => void;
   setPlan2Label: (label: string) => void;
+  /** インポートしたJSONデータでストアを上書き（不足フィールドはデフォルトで補完） */
+  loadFromJson: (data: SimulationExportData) => void;
+}
+
+/** エクスポート/インポート用のデータ形式 */
+export interface SimulationExportData {
+  version: number;
+  rates?: RateSettings;
+  corporateTaxParams?: CorporateTaxParams;
+  effectiveTaxRates?: EffectiveTaxRates;
+  currentExecutives?: ExecutiveInput[];
+  comparisonExecutives?: ExecutiveInput[];
+  plan2Executives?: ExecutiveInput[];
+  combineOtherSalaryForInsurance?: boolean;
+  taxYear?: TaxYear;
+  plan1Label?: string;
+  plan2Label?: string;
 }
 
 const defaults = createDefaultSimulationData();
@@ -117,6 +134,27 @@ export const useSimulationStore = create<SimulationState>()(
       setTaxYear: (taxYear) => set({ taxYear }),
       setPlan1Label: (plan1Label) => set({ plan1Label }),
       setPlan2Label: (plan2Label) => set({ plan2Label }),
+
+      loadFromJson: (data) =>
+        set((state) => ({
+          rates: data.rates ?? state.rates,
+          corporateTaxParams: data.corporateTaxParams ?? state.corporateTaxParams,
+          effectiveTaxRates: data.effectiveTaxRates ?? state.effectiveTaxRates,
+          currentExecutives: data.currentExecutives
+            ? data.currentExecutives.map(migrateExecutive)
+            : state.currentExecutives,
+          comparisonExecutives: data.comparisonExecutives
+            ? data.comparisonExecutives.map(migrateExecutive)
+            : state.comparisonExecutives,
+          plan2Executives: data.plan2Executives
+            ? data.plan2Executives.map(migrateExecutive)
+            : state.plan2Executives,
+          combineOtherSalaryForInsurance:
+            data.combineOtherSalaryForInsurance ?? state.combineOtherSalaryForInsurance,
+          taxYear: (data.taxYear ?? state.taxYear) as TaxYear,
+          plan1Label: data.plan1Label ?? state.plan1Label,
+          plan2Label: data.plan2Label ?? state.plan2Label,
+        })),
     }),
     {
       name: "koganemushi-simulation",
