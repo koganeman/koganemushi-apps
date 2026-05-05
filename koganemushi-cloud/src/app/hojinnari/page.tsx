@@ -83,6 +83,18 @@ export default function HojinnariPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* マニュアルリンク */}
+      <div className="bg-white border-b px-6 py-2 text-sm">
+        <a
+          href="https://peach-fin-48b.notion.site/34ded47bc575806ca970f5bc991420fe"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline"
+        >
+          法人成りシミュレーション 操作マニュアル
+        </a>
+      </div>
+
       {/* タブナビゲーション（layout.tsx のヘッダー下） */}
       <div className="bg-white border-b px-6 flex items-center gap-0">
         {TAB_LABELS.map((tab) => (

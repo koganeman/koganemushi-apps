@@ -67,10 +67,12 @@ export const DEFAULT_HOJINNARI_INPUT: HojinnariInput = {
   plan1MicroRevenue: 0,
   plan1MicroSalary: 0,
   plan1SpouseSalary: 0,
+  plan1SpouseIsDependent: false,
 
   // PLAN2: 完全法人成り
   plan2Salary: 0,
   plan2SpouseSalary: 0,
+  plan2SpouseIsDependent: false,
 
   // 非常勤役員
   isNonExecutive: true,

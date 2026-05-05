@@ -206,6 +206,20 @@ export function HoujinnariSheet() {
                 onChange={(v) => setInput({ plan2SpouseSalary: v })}
               />
             </div>
+            {input.hasSpouse && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="plan2SpouseIsDependent"
+                  checked={input.plan2SpouseIsDependent ?? false}
+                  onChange={(e) => setInput({ plan2SpouseIsDependent: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="plan2SpouseIsDependent" className="text-sm text-gray-600">
+                  配偶者は事業主の扶養に入る（社保非加入）
+                </label>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -267,6 +281,20 @@ export function HoujinnariSheet() {
                 onChange={(v) => setInput({ plan1SpouseSalary: v })}
               />
             </div>
+            {input.hasSpouse && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="plan1SpouseIsDependent"
+                  checked={input.plan1SpouseIsDependent ?? false}
+                  onChange={(e) => setInput({ plan1SpouseIsDependent: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="plan1SpouseIsDependent" className="text-sm text-gray-600">
+                  配偶者は事業主の扶養に入る（社保非加入）
+                </label>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 p-3 bg-orange-50 rounded text-xs text-gray-600 space-y-1">

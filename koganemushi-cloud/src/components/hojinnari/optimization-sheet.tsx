@@ -66,6 +66,10 @@ export function OptimizationSheet() {
     decisionTotals.personalIncomeIncrease > 0;
 
   const step = 1000000;
+  // 役員報酬の上限: 事業所得 + 配偶者の青色事業専従者給与
+  // （完全法人成り後の役員報酬支払前法人所得に相当する金額まで sweep）
+  const salaryUpperLimit =
+    input.businessIncome + (input.hasSpouse ? input.spouseBusinessSalary : 0);
 
   // PLAN1（完全法人成り）最適化: 役員報酬を変化させる + 決算対策反映 + 配偶者合算
   const plan2Points: Array<{
@@ -74,7 +78,7 @@ export function OptimizationSheet() {
     ownerNetIncome: number;
     corporateRetained: number;
   }> = [];
-  for (let salary = 0; salary <= input.businessIncome; salary += step) {
+  for (let salary = 0; salary <= salaryUpperLimit; salary += step) {
     const modified = { ...input, plan2Salary: salary };
     const r = calcPlan2(modified, rates, taxYear);
     const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);
@@ -94,7 +98,7 @@ export function OptimizationSheet() {
     ownerNetIncome: number;
     corporateRetained: number;
   }> = [];
-  for (let sal = 0; sal <= input.businessIncome; sal += step) {
+  for (let sal = 0; sal <= salaryUpperLimit; sal += step) {
     const modified = { ...input, plan1MicroSalary: sal };
     const r = calcPlan1(modified, rates, taxYear);
     const adj = applyDecisionMeasures(r, decisionTotals, modified, rates);

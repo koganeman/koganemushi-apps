@@ -65,10 +65,12 @@ export interface HojinnariInput {
   plan1MicroRevenue: number;    // 法人に移転する売上
   plan1MicroSalary: number;     // マイクロ法人からの役員報酬（年額）
   plan1SpouseSalary: number;    // 配偶者への法人給与
+  plan1SpouseIsDependent: boolean; // 配偶者は事業主の扶養に入る（社保非加入）
 
   // PLAN2: 完全法人成り
   plan2Salary: number;          // 役員報酬（年額）
   plan2SpouseSalary: number;    // 配偶者への給与
+  plan2SpouseIsDependent: boolean; // 配偶者は事業主の扶養に入る（社保非加入）
 
   // 非常勤役員フラグ（true: 他社給与を標準報酬に合算しない）
   isNonExecutive: boolean;

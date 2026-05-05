@@ -698,8 +698,10 @@ export function calcPlan1(
   const ownerSocialInsurance = si.owner;
   const employerSocialInsurance = si.employer;
 
-  // 配偶者の社保（法人成り後は配偶者も社保加入）
-  const spouseSi = (input.hasSpouse && plan1SpouseSalary > 0)
+  // 配偶者の社保（法人成り後は配偶者も社保加入。ただし扶養設定なら社保なし）
+  const plan1SpouseEnrollsSI =
+    input.hasSpouse && plan1SpouseSalary > 0 && !input.plan1SpouseIsDependent;
+  const spouseSi = plan1SpouseEnrollsSI
     ? calcSocialInsurancePair(plan1SpouseSalary, input.spouse.age, rates, {
         useIndustryInsurance: input.useIndustryInsurance,
         industryInsuranceMonthly: input.industryInsuranceMonthlySpouse,
@@ -733,13 +735,13 @@ export function calcPlan1(
     input
   );
 
-  // 配偶者: 給与は法人給与のみ・社保は法人成り後の計算値で上書き
+  // 配偶者: 給与は法人給与のみ・社保は法人成り後の計算値で上書き（扶養なら 0）
   const spouseCalc = calcSpouseWithCorporateSalary(
     input,
     plan1SpouseSalary,
     isChildcareHousehold,
     taxYear,
-    input.hasSpouse && plan1SpouseSalary > 0 ? spouseSi.owner : null
+    plan1SpouseEnrollsSI ? spouseSi.owner : null
   );
 
   return {
@@ -843,8 +845,10 @@ export function calcPlan2(
   const ownerSocialInsurance = si.owner;
   const employerSocialInsurance = si.employer;
 
-  // 配偶者の社保（法人成り後は配偶者も社保加入）
-  const spouseSi = (input.hasSpouse && plan2SpouseSalary > 0)
+  // 配偶者の社保（法人成り後は配偶者も社保加入。ただし扶養設定なら社保なし）
+  const plan2SpouseEnrollsSI =
+    input.hasSpouse && plan2SpouseSalary > 0 && !input.plan2SpouseIsDependent;
+  const spouseSi = plan2SpouseEnrollsSI
     ? calcSocialInsurancePair(plan2SpouseSalary, input.spouse.age, rates, {
         useIndustryInsurance: input.useIndustryInsurance,
         industryInsuranceMonthly: input.industryInsuranceMonthlySpouse,
@@ -879,13 +883,13 @@ export function calcPlan2(
     input
   );
 
-  // 配偶者: 給与は法人給与のみ・社保は法人成り後の計算値で上書き
+  // 配偶者: 給与は法人給与のみ・社保は法人成り後の計算値で上書き（扶養なら 0）
   const spouseCalc = calcSpouseWithCorporateSalary(
     input,
     plan2SpouseSalary,
     isChildcareHousehold,
     taxYear,
-    input.hasSpouse && plan2SpouseSalary > 0 ? spouseSi.owner : null
+    plan2SpouseEnrollsSI ? spouseSi.owner : null
   );
 
   return {
