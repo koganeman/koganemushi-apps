@@ -2,7 +2,7 @@
 
 import { useHojinnariStore } from "@/stores/hojinnari-store";
 import { useShallow } from "zustand/react/shallow";
-import { calcIndividual, calcFamilyMemberTax } from "@/lib/hojinnari-calc";
+import { calcIndividual } from "@/lib/hojinnari-calc";
 import { Input } from "@/components/ui/input";
 import type { FamilyMemberResult } from "@/types/hojinnari";
 import { SectionRow, DataRow, type ColConfig } from "./sim-table-cells";
@@ -114,10 +114,8 @@ export function SimulationSheet() {
 
   const taxYear = useHojinnariStore((s) => s.taxYear);
   const ownerResult = calcIndividual(input, taxYear);
-  const isChildcare = input.isChildcareHousehold;
-  const sr = input.hasSpouse
-    ? calcFamilyMemberTax(input.spouse, isChildcare, taxYear)
-    : ZERO_MEMBER;
+  // 配偶者の計算結果は ownerResult.spouseResult を使用（青色事業専従者給与が合算済）
+  const sr = ownerResult.spouseResult ?? ZERO_MEMBER;
 
   const colCount = 2 + (cols.showSpouse ? 1 : 0) + 1;
 
