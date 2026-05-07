@@ -182,3 +182,33 @@
     page-break-after: avoid;
   }
 }
+
+/* ブロックパズル印刷用スタイル：画面表示要素をそのまま印刷に流用 */
+.bp-print-only {
+  display: none;
+}
+@media print {
+  .bp-print-hide {
+    display: none !important;
+  }
+  .bp-print-only {
+    display: block !important;
+  }
+  .bp-printable,
+  .bp-printable * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .bp-printable {
+    background: white !important;
+  }
+  /* 各ブロックパズル図はページ内で分断させない */
+  .bp-diagram {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* 操作パネル / P/L入力テーブル / モーダル類は印刷で除外 */
+  .bp-print-hide {
+    display: none !important;
+  }
+}

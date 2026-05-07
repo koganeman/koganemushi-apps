@@ -12,10 +12,25 @@ function makeInitialPeriods(): PLPeriodInput[] {
   );
 }
 
+export interface BlockPuzzleAdvice {
+  text: string;
+  generatedAt: string;
+  periodsHash: string;
+}
+
+/** エクスポート/インポート用のJSONフォーマット */
+export interface BlockPuzzleExportData {
+  version: number;
+  periods: PLPeriodInput[];
+  unit?: BlockPuzzleUnit;
+  showCashSection?: boolean;
+}
+
 interface BlockPuzzleState {
   periods: PLPeriodInput[];
   unit: BlockPuzzleUnit;
   showCashSection: boolean;
+  advice: BlockPuzzleAdvice | null;
 
   setPeriods: (periods: PLPeriodInput[]) => void;
   updateField: (index: number, field: keyof PLPeriodInput, value: number | string) => void;
@@ -23,6 +38,22 @@ interface BlockPuzzleState {
   setUnit: (unit: BlockPuzzleUnit) => void;
   setShowCashSection: (show: boolean) => void;
   resetPeriods: () => void;
+  setAdvice: (advice: BlockPuzzleAdvice | null) => void;
+  loadFromJson: (data: BlockPuzzleExportData) => void;
+}
+
+/**
+ * periodsの内容から決定論的なハッシュを生成。advice の有効性確認に使う。
+ */
+export function hashPeriods(periods: PLPeriodInput[]): string {
+  const json = JSON.stringify(periods);
+  // FNV-1a 32bit。短くてOKな用途
+  let h = 0x811c9dc5;
+  for (let i = 0; i < json.length; i++) {
+    h ^= json.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
 }
 
 export const useBlockPuzzleStore = create<BlockPuzzleState>()(
@@ -31,6 +62,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
       periods: makeInitialPeriods(),
       unit: "thousand",
       showCashSection: true,
+      advice: null,
 
       setPeriods: (periods) => set({ periods }),
 
@@ -53,7 +85,27 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
 
       setShowCashSection: (showCashSection) => set({ showCashSection }),
 
-      resetPeriods: () => set({ periods: makeInitialPeriods() }),
+      resetPeriods: () => set({ periods: makeInitialPeriods(), advice: null }),
+
+      setAdvice: (advice) => set({ advice }),
+
+      loadFromJson: (data) =>
+        set((state) => {
+          const periods =
+            Array.isArray(data.periods) && data.periods.length > 0
+              ? data.periods.map((period) => ({
+                  ...createEmptyPLPeriod(period.periodLabel ?? ""),
+                  ...period,
+                }))
+              : state.periods;
+          return {
+            periods,
+            unit: data.unit ?? state.unit,
+            showCashSection: data.showCashSection ?? state.showCashSection,
+            // インポート時はadviceの整合性が取れないためクリア
+            advice: null,
+          };
+        }),
     }),
     {
       name: "koganemushi-block-puzzle-v1",
@@ -61,6 +113,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
         periods: state.periods,
         unit: state.unit,
         showCashSection: state.showCashSection,
+        advice: state.advice,
       }),
       // 既存localStorageに新フィールドが欠けている場合のデフォルト補完
       merge: (persisted, current) => {

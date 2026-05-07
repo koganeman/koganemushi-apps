@@ -6,6 +6,9 @@ import {
   assembleLinesFromItems,
 } from "../pdf-pl-extract";
 import koganemushiLines from "./fixtures/koganemushi202506-lines.json";
+import etaxLines from "./fixtures/koganemushi-etax-2024-lines.json";
+import etaxAllPagesLines from "./fixtures/koganemushi-etax-2024-all-pages.json";
+import koganemushi2021Lines from "./fixtures/koganemushi-2021-lines.json";
 
 describe("parseJpNumber", () => {
   it("カンマ区切り数値をパース", () => {
@@ -137,6 +140,148 @@ describe("mapExtractedToInput Plan B 整合性", () => {
     expect(m.input.depreciation).toBe(3_046_641);
     expect(m.input.corporateTaxEtc).toBe(80_753);
     expect(m.input.loanRepayment).toBe(0);
+  });
+});
+
+describe("parsePLFromPdfLines (電子申告終了報告書 koganemushi 2024)", () => {
+  // 電子申告終了報告書フォーマット：
+  // - 和暦の期間表記（自令和5年7月1日 / 至令和6年6月30日）
+  // - 「○○計」ラベルなし、区分の最終行右端に小計
+  // - 法人税ラベルが「法人税、住民税及び事業税」
+  const result = parsePLFromPdfLines(etaxLines as string[]);
+
+  it("和暦から期末日を2024/6/30として抽出", () => {
+    expect(result.raw.periodEnd).toBe("2024/6/30");
+  });
+
+  it("売上高を区分小計から抽出（売上戻り高行の右端 65,620,079）", () => {
+    expect(result.raw.salesTotal).toBe(65_620_079);
+  });
+
+  it("売上原価を「合計」行から抽出", () => {
+    expect(result.raw.costOfSalesTotal).toBe(19_143_266);
+  });
+
+  it("販売管理費計を区分小計から抽出（雑費行の右端 48,122,323）", () => {
+    expect(result.raw.sellingAdminTotal).toBe(48_122_323);
+  });
+
+  it("人件費系：役員報酬・法定福利費を抽出", () => {
+    expect(result.raw.executiveCompensation).toBe(13_200_000);
+    expect(result.raw.legalWelfare).toBe(1_206_104);
+  });
+
+  it("減価償却費を抽出", () => {
+    expect(result.raw.depreciation).toBe(3_172_839);
+  });
+
+  it("営業外損益を区分小計から抽出", () => {
+    expect(result.raw.nonOperatingIncome).toBe(360_468);
+    expect(result.raw.nonOperatingExpense).toBe(751_841);
+  });
+
+  it("特別利益を区分小計から抽出（1項目のみ 3,862）", () => {
+    expect(result.raw.extraordinaryIncome).toBe(3_862);
+  });
+
+  it("税引前当期純損失を抽出（負数）", () => {
+    expect(result.raw.preTaxIncome).toBe(-2_033_021);
+  });
+
+  it("法人税住民税及び事業税を抽出", () => {
+    expect(result.raw.corporateTaxEtc).toBe(80_188);
+  });
+
+  it("必須項目はすべて抽出済みで警告なし", () => {
+    const requiredWarnings = result.warnings.filter((w) => w.includes("必須"));
+    expect(requiredWarnings).toEqual([]);
+  });
+
+  it("Plan B 整合性: 粗利益 − (人件費 + sellingAdminOther) = -2,033,021", () => {
+    const m = mapExtractedToInput(result);
+    expect(m.derivation.expectedPreTax).toBe(-2_033_021);
+    expect(m.derivation.expectedPreTax).toBe(result.raw.preTaxIncome);
+  });
+});
+
+describe("parsePLFromPdfLines (全40ページ・実ブラウザ相当)", () => {
+  // 実際のブラウザではPDFの全ページが渡される。
+  // ページ34より前に「役員報酬」を含む自由文（例：『2023年7月分より代表者の定期同額役員給与を月額60...』）
+  // があり、それが先に誤マッチしないことを保証する。
+  const result = parsePLFromPdfLines(etaxAllPagesLines as string[]);
+
+  it("役員報酬は P/L の値（13,200,000）が抽出される（自由文の数値ではない）", () => {
+    expect(result.raw.executiveCompensation).toBe(13_200_000);
+  });
+
+  it("法定福利費・減価償却費もP/Lの値が抽出される", () => {
+    expect(result.raw.legalWelfare).toBe(1_206_104);
+    expect(result.raw.depreciation).toBe(3_172_839);
+  });
+
+  it("税引前当期純損失・法人税住民税及び事業税が抽出される", () => {
+    expect(result.raw.preTaxIncome).toBe(-2_033_021);
+    expect(result.raw.corporateTaxEtc).toBe(80_188);
+  });
+
+  it("売上高・販売管理費計が区分小計から抽出される", () => {
+    expect(result.raw.salesTotal).toBe(65_620_079);
+    expect(result.raw.sellingAdminTotal).toBe(48_122_323);
+  });
+
+  it("Plan B 整合性: expectedPreTax = -2,033,021", () => {
+    const m = mapExtractedToInput(result);
+    expect(m.derivation.expectedPreTax).toBe(-2_033_021);
+  });
+});
+
+describe("parsePLFromPdfLines (決算報告書 koganemushi 2021)", () => {
+  // 決算報告書フォーマット：
+  // - 西暦＋「至」プレフィックス（自2020年7月1日 / 至2021年6月30日）
+  // - 「○○合計」ラベル（「計」ではなく「合計」）
+  // - 「法人税等」（「計」も「住民税及び事業税」もない単独ラベル）
+  const result = parsePLFromPdfLines(koganemushi2021Lines as string[]);
+
+  it("西暦＋「至」プレフィックスから期末日を2021/6/30として抽出", () => {
+    expect(result.raw.periodEnd).toBe("2021/6/30");
+  });
+
+  it("「売上高合計」ラベルから売上高を抽出", () => {
+    expect(result.raw.salesTotal).toBe(23_969_481);
+  });
+
+  it("「販売費及び一般管理費合計」ラベルから販管費計を抽出", () => {
+    expect(result.raw.sellingAdminTotal).toBe(22_788_825);
+  });
+
+  it("「営業外収益合計・営業外費用合計」ラベルから抽出", () => {
+    expect(result.raw.nonOperatingIncome).toBe(488_565);
+    expect(result.raw.nonOperatingExpense).toBe(326_506);
+  });
+
+  it("税引前当期純利益金額を抽出", () => {
+    expect(result.raw.preTaxIncome).toBe(1_342_715);
+  });
+
+  it("「法人税等」（計なし、単独）から法人税等を抽出", () => {
+    expect(result.raw.corporateTaxEtc).toBe(342_685);
+  });
+
+  it("人件費・減価償却費を抽出", () => {
+    expect(result.raw.executiveCompensation).toBe(2_400_000);
+    expect(result.raw.legalWelfare).toBe(134_369);
+    expect(result.raw.depreciation).toBe(1_817_054);
+  });
+
+  it("必須項目はすべて抽出済みで警告なし", () => {
+    const requiredWarnings = result.warnings.filter((w) => w.includes("必須"));
+    expect(requiredWarnings).toEqual([]);
+  });
+
+  it("Plan B 整合性: expectedPreTax = 1,342,715", () => {
+    const m = mapExtractedToInput(result);
+    expect(m.derivation.expectedPreTax).toBe(1_342_715);
+    expect(m.derivation.expectedPreTax).toBe(result.raw.preTaxIncome);
   });
 });
 

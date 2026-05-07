@@ -101,9 +101,9 @@ export interface ExtractedPLData {
 // 純関数：パース
 // ============================================================
 
-/** 全ての空白・縦パイプを除去 */
+/** 全ての空白・縦パイプ・読点を除去 */
 function normalizeLabel(s: string): string {
-  return s.replace(/[\s|]/g, "");
+  return s.replace(/[\s|、]/g, "");
 }
 
 /** "△123,456" "(123,456)" "-123,456" 等を整数に変換 */
@@ -145,39 +145,141 @@ interface LabelRule {
   label: string; // 警告メッセージ用
 }
 
+/**
+ * 「ラベル直後が数値のみ」厳格マッチ。
+ * 自由文（例：「役員報酬 2023年7月分より...」）が誤マッチするのを防ぐ。
+ * 数値が複数列ある場合は連結された数字列となるが正規表現でカバーする。
+ */
+function strictLabel(label: string): (s: string) => boolean {
+  return (s) => {
+    if (!s.startsWith(label)) { return false; }
+    const after = s.slice(label.length);
+    return /^-?[\d,]+$/.test(after);
+  };
+}
+
 const RULES: LabelRule[] = [
-  { field: "salesTotal",            label: "売上高計",       required: true,  test: (s) => s.includes("売上高計") },
-  { field: "costOfSalesTotal",      label: "売上原価計",     required: false, test: (s) => s.includes("売上原価計") || s.includes("当期商品売上原価") },
-  { field: "executiveCompensation", label: "役員報酬",       required: false, test: (s) => s.startsWith("役員報酬") },
-  { field: "executiveBonus",        label: "役員賞与",       required: false, test: (s) => s.startsWith("役員賞与") },
-  { field: "salaryAllowance",       label: "給料手当",       required: false, test: (s) => s.startsWith("給料手当") || s.startsWith("給与手当") },
-  { field: "miscellaneousSalary",   label: "雑給",           required: false, test: (s) => s.startsWith("雑給") },
-  { field: "bonus",                 label: "賞与",           required: false, test: (s) => s.startsWith("賞与") },
-  { field: "retirementBenefits",    label: "退職金",         required: false, test: (s) => s.startsWith("退職金") },
-  { field: "legalWelfare",          label: "法定福利費",     required: false, test: (s) => s.startsWith("法定福利費") },
-  { field: "sellingAdminTotal",     label: "販売管理費計",   required: true,  test: (s) => s.includes("販売管理費計") || s.includes("販売費及び一般管理費計") || s.includes("販売費一般管理費計") },
-  { field: "nonOperatingIncome",    label: "営業外収益計",   required: false, test: (s) => s.includes("営業外収益計") },
-  { field: "nonOperatingExpense",   label: "営業外費用計",   required: false, test: (s) => s.includes("営業外費用計") },
-  { field: "extraordinaryIncome",   label: "特別利益計",     required: false, test: (s) => s.includes("特別利益計") },
-  { field: "extraordinaryLoss",     label: "特別損失計",     required: false, test: (s) => s.includes("特別損失計") },
-  { field: "depreciation",          label: "減価償却費",     required: false, test: (s) => s.startsWith("減価償却費") },
-  { field: "corporateTaxEtc",       label: "法人税等計",     required: false, test: (s) => s.includes("法人税等計") },
+  { field: "salesTotal",            label: "売上高計",       required: true,  test: (s) => s.includes("売上高計") || s.includes("売上高合計") },
+  { field: "costOfSalesTotal",      label: "売上原価計",     required: false, test: (s) => s.includes("売上原価計") || s.includes("売上原価合計") || s.includes("当期商品売上原価") },
+  { field: "executiveCompensation", label: "役員報酬",       required: false, test: strictLabel("役員報酬") },
+  { field: "executiveBonus",        label: "役員賞与",       required: false, test: strictLabel("役員賞与") },
+  { field: "salaryAllowance",       label: "給料手当",       required: false, test: (s) => strictLabel("給料手当")(s) || strictLabel("給与手当")(s) },
+  { field: "miscellaneousSalary",   label: "雑給",           required: false, test: strictLabel("雑給") },
+  { field: "bonus",                 label: "賞与",           required: false, test: strictLabel("賞与") },
+  { field: "retirementBenefits",    label: "退職金",         required: false, test: strictLabel("退職金") },
+  { field: "legalWelfare",          label: "法定福利費",     required: false, test: strictLabel("法定福利費") },
+  { field: "sellingAdminTotal",     label: "販売管理費計",   required: true,  test: (s) => s.includes("販売管理費計") || s.includes("販売管理費合計") || s.includes("販売費及び一般管理費計") || s.includes("販売費及び一般管理費合計") },
+  { field: "nonOperatingIncome",    label: "営業外収益計",   required: false, test: (s) => s.includes("営業外収益計") || s.includes("営業外収益合計") },
+  { field: "nonOperatingExpense",   label: "営業外費用計",   required: false, test: (s) => s.includes("営業外費用計") || s.includes("営業外費用合計") },
+  { field: "extraordinaryIncome",   label: "特別利益計",     required: false, test: (s) => s.includes("特別利益計") || s.includes("特別利益合計") },
+  { field: "extraordinaryLoss",     label: "特別損失計",     required: false, test: (s) => s.includes("特別損失計") || s.includes("特別損失合計") },
+  { field: "depreciation",          label: "減価償却費",     required: false, test: strictLabel("減価償却費") },
+  { field: "corporateTaxEtc",       label: "法人税等計",     required: false, test: (s) => s.includes("法人税等計") || strictLabel("法人税等")(s) || strictLabel("法人税住民税及び事業税")(s) || strictLabel("法人税及び住民税")(s) },
   { field: "preTaxIncome",          label: "税引前当期純利益", required: true, test: (s) => s.includes("税引前当期純利益") || s.includes("税引前当期純損失") },
 ];
 
-/** 期末日検出 */
+/** 和暦→西暦オフセット */
+function eraOffset(era: string): number {
+  if (era === "令和") { return 2018; }
+  if (era === "平成") { return 1988; }
+  if (era === "昭和") { return 1925; }
+  return 0;
+}
+
+type DateExtractor = (normalized: string) => string | undefined;
+
+/** 西暦範囲: 2024年07月01日〜2025年06月30日 */
+const seirekiRangeExtractor: DateExtractor = (ln) => {
+  const m = ln.match(/(\d{4})年(\d{1,2})月(\d{1,2})日[〜～~](\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (!m) { return undefined; }
+  return `${parseInt(m[4], 10)}/${parseInt(m[5], 10)}/${parseInt(m[6], 10)}`;
+};
+
+/** 和暦範囲（同一行）: 令和5年7月1日〜令和6年6月30日 */
+const warekiRangeExtractor: DateExtractor = (ln) => {
+  const m = ln.match(/(令和|平成|昭和)\d{1,2}年\d{1,2}月\d{1,2}日[〜～~](?:至)?(令和|平成|昭和)(\d{1,2})年(\d{1,2})月(\d{1,2})日/);
+  if (!m) { return undefined; }
+  const y = parseInt(m[3], 10) + eraOffset(m[2]);
+  return `${y}/${parseInt(m[4], 10)}/${parseInt(m[5], 10)}`;
+};
+
+/** 「至」プレフィックス・和暦: 至令和6年6月30日 */
+const shiseiWarekiExtractor: DateExtractor = (ln) => {
+  const m = ln.match(/至(令和|平成|昭和)(\d{1,2})年(\d{1,2})月(\d{1,2})日/);
+  if (!m) { return undefined; }
+  const y = parseInt(m[2], 10) + eraOffset(m[1]);
+  return `${y}/${parseInt(m[3], 10)}/${parseInt(m[4], 10)}`;
+};
+
+/** 「至」プレフィックス・西暦: 至2021年6月30日 */
+const shiseiSeirekiExtractor: DateExtractor = (ln) => {
+  const m = ln.match(/至(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (!m) { return undefined; }
+  return `${parseInt(m[1], 10)}/${parseInt(m[2], 10)}/${parseInt(m[3], 10)}`;
+};
+
+const DATE_EXTRACTORS: DateExtractor[] = [
+  seirekiRangeExtractor,
+  warekiRangeExtractor,
+  shiseiWarekiExtractor,
+  shiseiSeirekiExtractor,
+];
+
+/** 期末日検出（西暦・和暦・「至」プレフィックス対応） */
 function detectPeriodEnd(normalizedLines: string[]): string | undefined {
-  const re = /(\d{4})年(\d{1,2})月(\d{1,2})日[〜～~](\d{4})年(\d{1,2})月(\d{1,2})日/;
-  for (const ln of normalizedLines) {
-    const m = ln.match(re);
-    if (m) {
-      const y = parseInt(m[4], 10);
-      const mo = parseInt(m[5], 10);
-      const d = parseInt(m[6], 10);
-      return `${y}/${mo}/${d}`;
+  for (const extract of DATE_EXTRACTORS) {
+    for (const ln of normalizedLines) {
+      const v = extract(ln);
+      if (v) { return v; }
     }
   }
   return undefined;
+}
+
+/** 区分の終了を示すサマリー行（営業利益・経常利益・税引前等） */
+function isSummaryLine(normalized: string): boolean {
+  return /^(売上総利益|売上総損失|営業利益|営業損失|経常利益|経常損失|税引前当期純(利益|損失)|当期純(利益|損失)|法人税住民税及び事業税|法人税及び住民税)/.test(normalized);
+}
+
+/**
+ * 【】区分から各セクション小計を抽出する。
+ * 確定申告書の電子申告終了報告書のように「○○計」ラベルがなく、
+ * 区分の最終行に右端の小計が入る形式に対応するためのフォールバック。
+ */
+function extractSectionTotals(lines: string[]): Record<string, number> {
+  const totals: Record<string, number> = {};
+  let current: { name: string; rawLines: string[] } | null = null;
+
+  const flush = () => {
+    if (!current) { return; }
+    for (let i = current.rawLines.length - 1; i >= 0; i--) {
+      const v = lastNumberOnLine(current.rawLines[i]);
+      if (v !== undefined) {
+        totals[current.name] = v;
+        return;
+      }
+    }
+  };
+
+  for (const line of lines) {
+    const norm = normalizeLabel(line);
+    const m = norm.match(/^【([^】]+)】/);
+    if (m) {
+      flush();
+      current = { name: m[1], rawLines: [] };
+      continue;
+    }
+    if (current && isSummaryLine(norm)) {
+      flush();
+      current = null;
+      continue;
+    }
+    if (current) {
+      current.rawLines.push(line);
+    }
+  }
+  flush();
+  return totals;
 }
 
 /**
@@ -204,8 +306,61 @@ function findValueForRule(rule: LabelRule, lines: string[]): number | undefined 
   return undefined;
 }
 
+interface SectionFallback {
+  field: keyof ExtractedRawValues;
+  sectionNames: string[];
+  label: string;
+  required: boolean;
+}
+
+/** 区分名→フィールドのフォールバックマップ */
+const SECTION_FALLBACK: SectionFallback[] = [
+  { field: "salesTotal",          label: "売上高",                sectionNames: ["売上高"], required: true },
+  { field: "costOfSalesTotal",    label: "売上原価",              sectionNames: ["売上原価"], required: false },
+  { field: "sellingAdminTotal",   label: "販売費及び一般管理費",
+    sectionNames: ["販売費及び一般管理費", "販売管理費"], required: true },
+  { field: "nonOperatingIncome",  label: "営業外収益",            sectionNames: ["営業外収益"], required: false },
+  { field: "nonOperatingExpense", label: "営業外費用",            sectionNames: ["営業外費用"], required: false },
+  { field: "extraordinaryIncome", label: "特別利益",              sectionNames: ["特別利益"], required: false },
+  { field: "extraordinaryLoss",   label: "特別損失",              sectionNames: ["特別損失"], required: false },
+];
+
+function applySectionFallback(raw: ExtractedRawValues, sectionTotals: Record<string, number>): void {
+  for (const fb of SECTION_FALLBACK) {
+    if (raw[fb.field] !== undefined) { continue; }
+    for (const name of fb.sectionNames) {
+      if (sectionTotals[name] !== undefined) {
+        raw[fb.field] = sectionTotals[name] as never;
+        break;
+      }
+    }
+  }
+}
+
+function collectRequiredWarnings(raw: ExtractedRawValues): string[] {
+  const warnings: string[] = [];
+  for (const rule of RULES) {
+    if (!rule.required || raw[rule.field] !== undefined) { continue; }
+    const hasSectionFallback = SECTION_FALLBACK.some((fb) => fb.field === rule.field);
+    if (!hasSectionFallback) {
+      warnings.push(`必須項目「${rule.label}」を抽出できませんでした`);
+    }
+  }
+  for (const fb of SECTION_FALLBACK) {
+    if (fb.required && raw[fb.field] === undefined) {
+      warnings.push(`必須項目「${fb.label}」を抽出できませんでした`);
+    }
+  }
+  return warnings;
+}
+
 /**
  * PDFから抽出したテキスト行配列をP/Lデータに変換する純関数。
+ *
+ * 抽出ストラテジー：
+ * 1. ラベル一致（売上高計・販売管理費計など）でまず探索
+ * 2. ラベルが見つからない場合は【】区分の最終行から小計を取り出す
+ *    （電子申告終了報告書のような「○○計」ラベルなしフォーマット対応）
  */
 export function parsePLFromPdfLines(lines: string[]): ExtractedPLData {
   const raw: ExtractedRawValues = {};
@@ -216,14 +371,17 @@ export function parsePLFromPdfLines(lines: string[]): ExtractedPLData {
   raw.periodEnd = detectPeriodEnd(normalizedLines);
   if (!raw.periodEnd) { warnings.push("会計期間を検出できませんでした"); }
 
+  // 1. ラベル一致による抽出
   for (const rule of RULES) {
     const v = findValueForRule(rule, lines);
-    if (v !== undefined) {
-      raw[rule.field] = v as never;
-    } else if (rule.required) {
-      warnings.push(`必須項目「${rule.label}」を抽出できませんでした`);
-    }
+    if (v !== undefined) { raw[rule.field] = v as never; }
   }
+
+  // 2. 区分小計フォールバック
+  applySectionFallback(raw, extractSectionTotals(lines));
+
+  // 3. 必須警告
+  warnings.push(...collectRequiredWarnings(raw));
 
   return { raw, warnings };
 }
