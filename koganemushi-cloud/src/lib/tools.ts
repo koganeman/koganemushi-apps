@@ -96,7 +96,7 @@ export const TOOLS: ToolInfo[] = [
     name: "お金のブロックパズル",
     description: "お金の流れを視覚的に理解するツール",
     href: "/block-puzzle",
-    status: "coming-soon",
+    status: "dev",
   },
   {
     id: "entaizei",

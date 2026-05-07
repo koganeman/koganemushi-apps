@@ -9,7 +9,8 @@
 | `/` | ツール一覧（Top） | 稼働中 |
 | `/yakuin-hoshu` | 役員報酬シミュレーション | 稼働中 |
 | `/hojinnari` | 法人なりシミュレーション | 稼働中 |
-| `/furusato-nouzei` 他14件 | 各種税金計算ツール | 準備中 |
+| `/block-puzzle` | お金のブロックパズル | 開発中 |
+| `/furusato-nouzei` 他13件 | 各種税金計算ツール | 準備中 |
 
 ツール定義は `src/lib/tools.ts` で一元管理。
 
