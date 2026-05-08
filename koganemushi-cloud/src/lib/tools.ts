@@ -93,8 +93,8 @@ export const TOOLS: ToolInfo[] = [
   },
   {
     id: "block-puzzle",
-    name: "お金のブロックパズル",
-    description: "お金の流れを視覚的に理解するツール",
+    name: "お金のブロックパズル + 貸借対照表",
+    description: "P/Lと貸借対照表を5期分ブロックパズル図で可視化、AI経営アドバイス、PPTXレポート出力",
     href: "/block-puzzle",
     status: "dev",
   },

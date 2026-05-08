@@ -8,6 +8,8 @@ interface BlockPuzzleDiagramProps {
   unit: BlockPuzzleUnit;
   /** キャッシュ系（法人税等・税引後利益・借入金返済・増加キャッシュ・減価償却費）を表示 */
   showCashSection?: boolean;
+  /** "ideal" のときは理想P/L用の紫系スタイルで強調 */
+  variant?: "actual" | "ideal";
 }
 
 const MAIN_HEIGHT_PX = 320;
@@ -42,13 +44,28 @@ export function BlockPuzzleDiagram({
   result,
   unit,
   showCashSection = true,
+  variant = "actual",
 }: BlockPuzzleDiagramProps) {
   const r = result;
   const isLoss = r.preTaxProfit < 0;
+  const isIdeal = variant === "ideal";
 
   return (
-    <div className="border border-gray-300 bg-white">
-      <div className="bg-blue-700 text-white text-center py-1 font-semibold text-sm">
+    <div
+      className={
+        isIdeal
+          ? "border-2 border-purple-400 bg-purple-50/30"
+          : "border border-gray-300 bg-white"
+      }
+    >
+      <div
+        className={
+          isIdeal
+            ? "bg-purple-600 text-white text-center py-1 font-semibold text-sm"
+            : "bg-blue-700 text-white text-center py-1 font-semibold text-sm"
+        }
+      >
+        {isIdeal && <span className="mr-1">✨ AI理想</span>}
         {r.periodLabel}
       </div>
       {isLoss ? (

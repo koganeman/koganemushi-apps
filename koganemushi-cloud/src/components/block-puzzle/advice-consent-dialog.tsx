@@ -8,15 +8,22 @@ interface Props {
   open: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** 送信される項目のリスト。省略時はP/L用のデフォルト */
+  sentItems?: string[];
+  /** 上部の説明文。省略時はP/L用 */
+  description?: string;
 }
 
-const SENT_ITEMS = [
+const DEFAULT_SENT_ITEMS = [
   "期末日（例：2025/6/30）",
   "売上高、変動費（売上原価）、粗利益、粗利益率",
   "人件費合計、労働分配率、その他固定費、固定費合計",
   "税引前/税引後の損益、法人税等",
   "減価償却費、借入金返済、増加キャッシュ",
 ];
+
+const DEFAULT_DESCRIPTION =
+  "「AIアドバイス生成」では、入力されたP/Lデータを Anthropic 社の Claude API に送信します。送信される内容と送信されない内容を以下にご確認ください。";
 
 const NOT_SENT_ITEMS = [
   "会社名（社名・屋号）",
@@ -27,8 +34,15 @@ const NOT_SENT_ITEMS = [
   "詳細な勘定科目（広告宣伝費、外注費 等の個別科目）",
 ];
 
-export function AdviceConsentDialog({ open, onCancel, onConfirm }: Props) {
+export function AdviceConsentDialog({
+  open,
+  onCancel,
+  onConfirm,
+  sentItems = DEFAULT_SENT_ITEMS,
+  description = DEFAULT_DESCRIPTION,
+}: Props) {
   const [agreed, setAgreed] = useState(false);
+  const SENT_ITEMS = sentItems;
 
   const handleCancel = () => {
     setAgreed(false);
@@ -48,10 +62,7 @@ export function AdviceConsentDialog({ open, onCancel, onConfirm }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
-          <p className="text-gray-700">
-            「AIアドバイス生成」では、入力されたP/Lデータを Anthropic 社の Claude API に送信します。
-            送信される内容と送信されない内容を以下にご確認ください。
-          </p>
+          <p className="text-gray-700">{description}</p>
 
           {/* 送信される項目 */}
           <section>

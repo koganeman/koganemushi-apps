@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { PLPeriodInput, BlockPuzzleUnit } from "@/types/block-puzzle";
+import type {
+  BlockPuzzleUnit,
+  IdealPLParams,
+  PLPeriodInput,
+} from "@/types/block-puzzle";
 import { createEmptyPLPeriod } from "@/lib/block-puzzle-calc";
 
 const DEFAULT_PERIODS = 5;
@@ -18,12 +22,21 @@ export interface BlockPuzzleAdvice {
   periodsHash: string;
 }
 
+export interface BlockPuzzleIdeal {
+  period: PLPeriodInput;
+  reasoning: string;
+  params: IdealPLParams;
+  generatedAt: string;
+  periodsHash: string;
+}
+
 /** エクスポート/インポート用のJSONフォーマット */
 export interface BlockPuzzleExportData {
   version: number;
   periods: PLPeriodInput[];
   unit?: BlockPuzzleUnit;
   showCashSection?: boolean;
+  ideal?: BlockPuzzleIdeal;
 }
 
 interface BlockPuzzleState {
@@ -31,6 +44,7 @@ interface BlockPuzzleState {
   unit: BlockPuzzleUnit;
   showCashSection: boolean;
   advice: BlockPuzzleAdvice | null;
+  ideal: BlockPuzzleIdeal | null;
 
   setPeriods: (periods: PLPeriodInput[]) => void;
   updateField: (index: number, field: keyof PLPeriodInput, value: number | string) => void;
@@ -39,6 +53,8 @@ interface BlockPuzzleState {
   setShowCashSection: (show: boolean) => void;
   resetPeriods: () => void;
   setAdvice: (advice: BlockPuzzleAdvice | null) => void;
+  setIdeal: (ideal: BlockPuzzleIdeal | null) => void;
+  updateIdealField: (field: keyof PLPeriodInput, value: number | string) => void;
   loadFromJson: (data: BlockPuzzleExportData) => void;
 }
 
@@ -63,6 +79,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
       unit: "thousand",
       showCashSection: true,
       advice: null,
+      ideal: null,
 
       setPeriods: (periods) => set({ periods }),
 
@@ -85,9 +102,18 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
 
       setShowCashSection: (showCashSection) => set({ showCashSection }),
 
-      resetPeriods: () => set({ periods: makeInitialPeriods(), advice: null }),
+      resetPeriods: () => set({ periods: makeInitialPeriods(), advice: null, ideal: null }),
 
       setAdvice: (advice) => set({ advice }),
+
+      setIdeal: (ideal) => set({ ideal }),
+
+      updateIdealField: (field, value) =>
+        set((state) => {
+          if (!state.ideal) { return {}; }
+          const period = { ...state.ideal.period, [field]: value } as PLPeriodInput;
+          return { ideal: { ...state.ideal, period } };
+        }),
 
       loadFromJson: (data) =>
         set((state) => {
@@ -104,6 +130,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
             showCashSection: data.showCashSection ?? state.showCashSection,
             // インポート時はadviceの整合性が取れないためクリア
             advice: null,
+            ideal: data.ideal ?? null,
           };
         }),
     }),
@@ -114,6 +141,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
         unit: state.unit,
         showCashSection: state.showCashSection,
         advice: state.advice,
+        ideal: state.ideal,
       }),
       // 既存localStorageに新フィールドが欠けている場合のデフォルト補完
       merge: (persisted, current) => {
@@ -129,6 +157,7 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
           ...current,
           ...p,
           periods: mergedPeriods,
+          ideal: p.ideal ?? null,
         };
       },
     }

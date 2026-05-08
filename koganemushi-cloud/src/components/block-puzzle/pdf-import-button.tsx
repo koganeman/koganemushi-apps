@@ -8,16 +8,29 @@ import {
   parsePLFromPdfLines,
   type ExtractedPLData,
 } from "@/lib/pdf-pl-extract";
+import {
+  parseBSFromPdfLines,
+  type ExtractedBSData,
+} from "@/lib/pdf-bs-extract";
 import type { PLPeriodInput } from "@/types/block-puzzle";
+import type { BSPeriodInput } from "@/types/balance-sheet";
 
 interface Props {
   columnIndex: number;
-  onApply: (index: number, next: PLPeriodInput) => void;
+  /** P/L入力を該当列に適用 */
+  onApplyPL: (index: number, next: PLPeriodInput) => void;
+  /** B/S入力を該当列に適用 */
+  onApplyBS: (index: number, next: BSPeriodInput) => void;
 }
 
-export function PdfImportButton({ columnIndex, onApply }: Props) {
+export interface ExtractedCombined {
+  pl: ExtractedPLData;
+  bs: ExtractedBSData;
+}
+
+export function PdfImportButton({ columnIndex, onApplyPL, onApplyBS }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [extracted, setExtracted] = useState<ExtractedPLData | null>(null);
+  const [extracted, setExtracted] = useState<ExtractedCombined | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +44,9 @@ export function PdfImportButton({ columnIndex, onApply }: Props) {
     setError(null);
     try {
       const lines = await extractTextLinesFromPdf(file);
-      const data = parsePLFromPdfLines(lines);
-      setExtracted(data);
+      const pl = parsePLFromPdfLines(lines);
+      const bs = parseBSFromPdfLines(lines);
+      setExtracted({ pl, bs });
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF読込エラー");
     } finally {
@@ -60,8 +74,9 @@ export function PdfImportButton({ columnIndex, onApply }: Props) {
           open={!!extracted}
           extracted={extracted}
           onCancel={() => setExtracted(null)}
-          onApply={(next) => {
-            onApply(columnIndex, next);
+          onApply={({ plInput, bsInput }) => {
+            onApplyPL(columnIndex, plInput);
+            onApplyBS(columnIndex, bsInput);
             setExtracted(null);
           }}
         />

@@ -37,6 +37,24 @@ export interface PLPeriodInput {
 /** ブロックパズル表示単位 */
 export type BlockPuzzleUnit = "yen" | "thousand";
 
+/** AI理想P/L生成パラメータ */
+export type IdealHorizon = 1;
+
+export interface IdealPLParams {
+  /** 何年後の理想PLか（現状は1年後のみ） */
+  horizonYears: IdealHorizon;
+  /** 売上目標（円）。null=AI自動 */
+  salesTarget: number | null;
+  /** 目標粗利益率（0〜100）。null=AI自動 */
+  targetGrossMarginPct: number | null;
+  /** 目標労働分配率（0〜100）。null=AI自動 */
+  targetLaborDistributionPct: number | null;
+  /** 目標増加キャッシュ（円）。null=AI自動 */
+  targetCashIncrease: number | null;
+  /** 重視ポイント（自由記述） */
+  focus: string;
+}
+
 /** 1期分のブロックパズル計算結果（全て円単位、整数） */
 export interface BlockPuzzleResult {
   /** 期末日ラベル */

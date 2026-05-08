@@ -1,6 +1,7 @@
 "use client";
 
 import type { PLPeriodInput } from "@/types/block-puzzle";
+import type { BSPeriodInput } from "@/types/balance-sheet";
 import { formatYen, parseYen } from "@/lib/format";
 import { PdfImportButton } from "./pdf-import-button";
 
@@ -25,10 +26,14 @@ const ROW_DEFS: { label: string; field: keyof PLPeriodInput; bold?: boolean; sec
 interface PLInputTableProps {
   periods: PLPeriodInput[];
   onChange: (index: number, field: keyof PLPeriodInput, value: number | string) => void;
-  onApplyPdf?: (index: number, next: PLPeriodInput) => void;
+  /** PDF読込時にP/L入力を該当列に反映 */
+  onApplyPdfPL?: (index: number, next: PLPeriodInput) => void;
+  /** PDF読込時にB/S入力を該当列に反映（同じPDFから両方抽出） */
+  onApplyPdfBS?: (index: number, next: BSPeriodInput) => void;
 }
 
-export function PLInputTable({ periods, onChange, onApplyPdf }: PLInputTableProps) {
+export function PLInputTable({ periods, onChange, onApplyPdfPL, onApplyPdfBS }: PLInputTableProps) {
+  const showPdfButton = !!onApplyPdfPL && !!onApplyPdfBS;
   return (
     <div className="overflow-x-auto">
       <table className="border-collapse text-sm">
@@ -46,7 +51,13 @@ export function PLInputTable({ periods, onChange, onApplyPdf }: PLInputTableProp
                     onChange={(e) => onChange(i, "periodLabel", e.target.value)}
                     className="bg-transparent w-full text-center font-semibold focus:bg-white focus:outline-blue-400 outline-none rounded px-1"
                   />
-                  {onApplyPdf && <PdfImportButton columnIndex={i} onApply={onApplyPdf} />}
+                  {showPdfButton && (
+                    <PdfImportButton
+                      columnIndex={i}
+                      onApplyPL={onApplyPdfPL!}
+                      onApplyBS={onApplyPdfBS!}
+                    />
+                  )}
                 </div>
               </th>
             ))}

@@ -1,20 +1,32 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { PLInputTable } from "@/components/block-puzzle/pl-input-table";
-import { BlockPuzzleDiagram } from "@/components/block-puzzle/block-puzzle-diagram";
-import { AdvicePanel } from "@/components/block-puzzle/advice-panel";
+import { ReportTabs, type ReportTabKey } from "@/components/block-puzzle/tabs";
+import { PLTab } from "@/components/block-puzzle/pl-tab";
+import { BSTab } from "@/components/block-puzzle/bs-tab";
+import { IntegratedReportTab } from "@/components/block-puzzle/integrated-report-tab";
 import {
   calcBlockPuzzle,
   createSamplePLPeriods,
 } from "@/lib/block-puzzle-calc";
-import { unitLabel } from "@/components/block-puzzle/format-helpers";
+import {
+  calcBalanceSheet,
+  createSampleBSPeriods,
+} from "@/lib/balance-sheet-calc";
 import {
   useBlockPuzzleStore,
   type BlockPuzzleExportData,
 } from "@/stores/block-puzzle-store";
-import { useShallow } from "zustand/react/shallow";
+import { useBalanceSheetStore } from "@/stores/balance-sheet-store";
+import type { BalanceSheetExportData } from "@/types/balance-sheet";
+
+interface CombinedExportData {
+  version: 2;
+  pl: BlockPuzzleExportData;
+  bs: BalanceSheetExportData;
+}
 
 function timestampForFilename(): string {
   const d = new Date();
@@ -22,57 +34,87 @@ function timestampForFilename(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+function isCombinedExport(data: unknown): data is CombinedExportData {
+  if (typeof data !== "object" || data === null) { return false; }
+  const d = data as Record<string, unknown>;
+  return d.version === 2 && typeof d.pl === "object" && typeof d.bs === "object";
+}
+
+function isLegacyPLExport(data: unknown): data is BlockPuzzleExportData {
+  if (typeof data !== "object" || data === null) { return false; }
+  const d = data as Record<string, unknown>;
+  return Array.isArray(d.periods);
+}
+
 export default function BlockPuzzlePage() {
-  const {
-    periods,
-    unit,
-    showCashSection,
-    updateField,
-    applyPdfToColumn,
-    setUnit,
-    setShowCashSection,
-    setPeriods,
-    resetPeriods,
-    loadFromJson,
-  } = useBlockPuzzleStore(
-    useShallow((s) => ({
-      periods: s.periods,
-      unit: s.unit,
-      showCashSection: s.showCashSection,
-      updateField: s.updateField,
-      applyPdfToColumn: s.applyPdfToColumn,
-      setUnit: s.setUnit,
-      setShowCashSection: s.setShowCashSection,
-      setPeriods: s.setPeriods,
-      resetPeriods: s.resetPeriods,
-      loadFromJson: s.loadFromJson,
-    }))
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-gray-500">読み込み中…</div>}>
+      <BlockPuzzlePageInner />
+    </Suspense>
+  );
+}
+
+function BlockPuzzlePageInner() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") as ReportTabKey | null;
+  const [activeTab, setActiveTab] = useState<ReportTabKey>(
+    initialTab === "bs" || initialTab === "report" ? initialTab : "pl",
   );
 
-  const results = useMemo(
-    () => periods.map((p) => calcBlockPuzzle(p)),
-    [periods]
+  const pl = useBlockPuzzleStore();
+  const bs = useBalanceSheetStore();
+
+  const plResults = useMemo(
+    () => pl.periods.map((p) => calcBlockPuzzle(p)),
+    [pl.periods],
+  );
+  const idealResult = useMemo(
+    () => (pl.ideal ? calcBlockPuzzle(pl.ideal.period) : null),
+    [pl.ideal],
+  );
+  const bsResults = useMemo(
+    () => bs.periods.map((p) => calcBalanceSheet(p)),
+    [bs.periods],
   );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [printTimestamp, setPrintTimestamp] = useState<string>("");
+  useEffect(() => {
+    setPrintTimestamp(new Date().toLocaleString("ja-JP"));
+  }, []);
 
   const handleLoadSample = () => {
-    setPeriods(createSamplePLPeriods());
+    pl.setPeriods(createSamplePLPeriods());
+    bs.setPeriods(createSampleBSPeriods());
+  };
+
+  const handleClear = () => {
+    pl.resetPeriods();
+    bs.resetPeriods();
   };
 
   const handleExport = () => {
-    const state = useBlockPuzzleStore.getState();
-    const data: BlockPuzzleExportData = {
-      version: 1,
-      periods: state.periods,
-      unit: state.unit,
-      showCashSection: state.showCashSection,
+    const plState = useBlockPuzzleStore.getState();
+    const bsState = useBalanceSheetStore.getState();
+    const data: CombinedExportData = {
+      version: 2,
+      pl: {
+        version: 1,
+        periods: plState.periods,
+        unit: plState.unit,
+        showCashSection: plState.showCashSection,
+      },
+      bs: {
+        version: 1,
+        periods: bsState.periods,
+        unit: bsState.unit,
+      },
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `block-puzzle_${timestampForFilename()}.json`;
+    a.download = `keiei-report_${timestampForFilename()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -89,149 +131,175 @@ export default function BlockPuzzlePage() {
     const file = e.target.files?.[0];
     if (!file) { return; }
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const text = String(ev.target?.result ?? "");
-        const data = JSON.parse(text) as BlockPuzzleExportData;
-        if (typeof data !== "object" || data === null || !Array.isArray(data.periods)) {
-          alert("JSONの形式が不正です。periods配列が必要です。");
-          return;
-        }
-        loadFromJson(data);
-        alert("インポートしました。");
-      } catch (err) {
-        alert(`インポートに失敗しました: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        if (fileInputRef.current) { fileInputRef.current.value = ""; }
-      }
-    };
+    reader.onload = (ev) => applyImportText(String(ev.target?.result ?? ""));
     reader.readAsText(file);
+  };
+
+  const applyImportText = (text: string) => {
+    try {
+      const data = JSON.parse(text) as unknown;
+      if (isCombinedExport(data)) {
+        pl.loadFromJson(data.pl);
+        bs.loadFromJson(data.bs);
+        alert("インポートしました（P/L + B/S）。");
+      } else if (isLegacyPLExport(data)) {
+        pl.loadFromJson(data);
+        alert("インポートしました（旧形式：P/Lのみ）。");
+      } else {
+        alert("JSONの形式が不正です。");
+      }
+    } catch (err) {
+      alert(`インポートに失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (fileInputRef.current) { fileInputRef.current.value = ""; }
+    }
+  };
+
+  const handleUnitChange = (next: "yen" | "thousand") => {
+    pl.setUnit(next);
+    bs.setUnit(next);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 bp-printable">
-      <main className="max-w-[1800px] mx-auto p-4 space-y-6">
+      <main className="max-w-[1800px] ml-0 mr-auto p-4 space-y-4">
         <header className="space-y-1">
-          <h1 className="text-xl font-bold">お金のブロックパズル</h1>
+          <h1 className="text-xl font-bold">お金のブロックパズル + 貸借対照表</h1>
           <p className="text-sm text-gray-600 bp-print-hide">
-            損益計算書から「お金の流れ」を視覚的に把握するためのツールです。
-            西順一郎先生のSTRAC図表をもとに和仁達也先生が改良した図解。
+            P/Lと貸借対照表を5期分のブロックパズル図で可視化し、AIの経営アドバイスをもとに経営レポート（PPTX）を出力できます。
           </p>
-          {/* 印刷時のみ表示するメタ情報 */}
           <p className="bp-print-only text-xs text-gray-600">
-            出力日時: {new Date().toLocaleString("ja-JP")}
+            出力日時: {printTimestamp}
           </p>
         </header>
 
-        {/* 操作パネル */}
-        <div className="flex flex-wrap items-center gap-3 bg-white border rounded-lg p-3 bp-print-hide">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-700">表示単位</span>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={unit === "yen"}
-                onChange={() => setUnit("yen")}
-              />
-              円単位
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="radio"
-                checked={unit === "thousand"}
-                onChange={() => setUnit("thousand")}
-              />
-              千円単位
-            </label>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={showCashSection}
-                onChange={(e) => setShowCashSection(e.target.checked)}
-              />
-              キャッシュ欄を表示
-            </label>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handlePrint}
-              title="ブロックパズルとAIアドバイスをPDF/印刷します（ブラウザの印刷ダイアログから「PDFとして保存」を選択）"
-            >
-              PDF出力
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleImportClick}
-              title="JSONファイルから入力データを読み込みます"
-            >
-              インポート
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleExport}
-              title="現在の入力データをJSONファイルに保存します"
-            >
-              エクスポート
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json,.json"
-              onChange={handleImportFile}
-              className="hidden"
-            />
-            <Button size="sm" variant="outline" onClick={handleLoadSample}>
-              サンプル読込
-            </Button>
-            <Button size="sm" variant="outline" onClick={resetPeriods}>
-              クリア
-            </Button>
-          </div>
-        </div>
+        <ControlPanel
+          unit={pl.unit}
+          onUnitChange={handleUnitChange}
+          showCashSection={pl.showCashSection}
+          onShowCashSectionChange={pl.setShowCashSection}
+          onPrint={handlePrint}
+          onImport={handleImportClick}
+          onExport={handleExport}
+          onLoadSample={handleLoadSample}
+          onClear={handleClear}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleImportFile}
+          className="hidden"
+        />
 
-        {/* P/L入力（印刷時は非表示） */}
-        <section className="bp-print-hide">
-          <h2 className="text-base font-bold mb-2">
-            <span className="inline-block w-3 h-3 bg-black rounded-full mr-1" />
-            P/L入力（円単位で入力）
-          </h2>
-          <PLInputTable periods={periods} onChange={updateField} onApplyPdf={applyPdfToColumn} />
-          <p className="text-xs text-gray-500 mt-1">
-            ※ 入力値はブラウザに自動保存されます（次回開いた時も保持）。各列ヘッダーの「PDF読込」で確定申告書PDFから自動抽出できます。
-            「販売管理費計（人件費以外）」は販管費 − 人件費 + 営業外費用 − 営業外収益 + 特別損失 − 特別利益（PDF読込時に自動計算）。
-          </p>
-        </section>
+        <ReportTabs active={activeTab} onChange={setActiveTab} />
 
-        {/* ブロックパズル可視化 */}
-        <section>
-          <h2 className="text-base font-bold mb-2">
-            <span className="inline-block w-3 h-3 bg-black rounded-full mr-1" />
-            ブロックパズル（{unitLabel(unit)}単位）
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {results.map((r, i) => (
-              <div key={i} className="bp-diagram">
-                <BlockPuzzleDiagram
-                  result={r}
-                  unit={unit}
-                  showCashSection={showCashSection}
-                />
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* AIアドバイス */}
-        <section>
-          <AdvicePanel results={results} />
-        </section>
+        {activeTab === "pl" && (
+          <PLTab
+            periods={pl.periods}
+            unit={pl.unit}
+            showCashSection={pl.showCashSection}
+            results={plResults}
+            idealResult={idealResult}
+            onChange={pl.updateField}
+            onApplyPdfPL={pl.applyPdfToColumn}
+            onApplyPdfBS={bs.applyPdfToColumn}
+          />
+        )}
+        {activeTab === "bs" && (
+          <BSTab
+            periods={bs.periods}
+            unit={bs.unit}
+            results={bsResults}
+            onChange={bs.updateField}
+          />
+        )}
+        {activeTab === "report" && (
+          <IntegratedReportTab
+            plResults={plResults}
+            bsResults={bsResults}
+            plAdviceText={pl.advice?.text ?? null}
+            bsAdviceText={bs.advice?.text ?? null}
+            unit={pl.unit}
+            showCashSection={pl.showCashSection}
+          />
+        )}
       </main>
+    </div>
+  );
+}
+
+interface ControlPanelProps {
+  unit: "yen" | "thousand";
+  onUnitChange: (u: "yen" | "thousand") => void;
+  showCashSection: boolean;
+  onShowCashSectionChange: (v: boolean) => void;
+  onPrint: () => void;
+  onImport: () => void;
+  onExport: () => void;
+  onLoadSample: () => void;
+  onClear: () => void;
+}
+
+function ControlPanel({
+  unit,
+  onUnitChange,
+  showCashSection,
+  onShowCashSectionChange,
+  onPrint,
+  onImport,
+  onExport,
+  onLoadSample,
+  onClear,
+}: ControlPanelProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 bg-white border rounded-lg p-3 bp-print-hide">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-gray-700">表示単位</span>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            checked={unit === "yen"}
+            onChange={() => onUnitChange("yen")}
+          />
+          円単位
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="radio"
+            checked={unit === "thousand"}
+            onChange={() => onUnitChange("thousand")}
+          />
+          千円単位
+        </label>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={showCashSection}
+            onChange={(e) => onShowCashSectionChange(e.target.checked)}
+          />
+          P/Lのキャッシュ欄を表示
+        </label>
+      </div>
+      <div className="ml-auto flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={onPrint}>
+          PDF出力
+        </Button>
+        <Button size="sm" variant="outline" onClick={onImport}>
+          インポート
+        </Button>
+        <Button size="sm" variant="outline" onClick={onExport}>
+          エクスポート
+        </Button>
+        <Button size="sm" variant="outline" onClick={onLoadSample}>
+          サンプル読込
+        </Button>
+        <Button size="sm" variant="outline" onClick={onClear}>
+          クリア
+        </Button>
+      </div>
     </div>
   );
 }
