@@ -68,6 +68,30 @@ export function fileTimestamp(): string {
 // 「- xxx」「・ xxx」「1. xxx」「1) xxx」「1） xxx」をすべて捕捉
 const BULLET_RE = /^(?:[-*・]\s+|\d+[.)）]\s+)(.+)$/;
 
+/**
+ * Markdown から指定見出し（「## XXX」）配下のテキストを抽出する。
+ * 次の「## 」見出しまで or 文末を取る。リスト記号や太字記号は除去して読みやすくする。
+ */
+export function extractSectionText(markdown: string, headingPattern: RegExp): string {
+  if (!markdown) { return ""; }
+  const lines = markdown.split("\n");
+  const out: string[] = [];
+  let inSection = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith("## ")) {
+      if (inSection) { break; }
+      const heading = line.slice(3).trim();
+      if (headingPattern.test(heading)) { inSection = true; }
+      continue;
+    }
+    if (inSection) {
+      out.push(line);
+    }
+  }
+  return out.join("\n").replace(/\*\*([^*]+)\*\*/g, "$1").trim();
+}
+
 function tryExtractBulletText(line: string): string | null {
   const m = line.match(BULLET_RE);
   if (!m) { return null; }

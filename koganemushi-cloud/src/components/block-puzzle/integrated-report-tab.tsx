@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type {
   BlockPuzzleResult,
@@ -11,12 +11,19 @@ import { BlockPuzzleDiagram } from "@/components/block-puzzle/block-puzzle-diagr
 import { BalanceSheetDiagram } from "@/components/balance-sheet/balance-sheet-diagram";
 import { generateReportPPTX } from "@/lib/pptx-report";
 import { fmtRate, fmtThousand } from "@/lib/pptx-render-helpers";
+import { computeAllIndicators } from "@/lib/financial-analysis-calc";
+import { useFinancialAnalysisStore } from "@/stores/financial-analysis-store";
+import { useShallow } from "zustand/react/shallow";
 
 interface Props {
   plResults: BlockPuzzleResult[];
   bsResults: BalanceSheetResult[];
   plAdviceText: string | null;
   bsAdviceText: string | null;
+  /** AI理想P/Lの計算結果。null=未生成 */
+  idealResult: BlockPuzzleResult | null;
+  /** AI理想P/Lの根拠テキスト（Markdown）。null=未生成 */
+  idealReasoning: string | null;
   unit: BlockPuzzleUnit;
   showCashSection: boolean;
 }
@@ -25,8 +32,23 @@ export function IntegratedReportTab(props: Props) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { profile, bsDetails } = useFinancialAnalysisStore(
+    useShallow((s) => ({ profile: s.profile, bsDetails: s.bsDetails })),
+  );
+  const analysisResults = useMemo(
+    () =>
+      computeAllIndicators({
+        plResults: props.plResults,
+        bsResults: props.bsResults,
+        bsDetails,
+        profile,
+      }),
+    [props.plResults, props.bsResults, bsDetails, profile],
+  );
+
   const hasPLData = props.plResults.some((r) => r.sales > 0);
   const hasBSData = props.bsResults.some((r) => r.totalAssets > 0);
+  const hasFAData = analysisResults.some((r) => r.totalScore !== null);
   const hasAnyData = hasPLData || hasBSData;
 
   const handleGenerate = async () => {
@@ -39,6 +61,9 @@ export function IntegratedReportTab(props: Props) {
         bsResults: props.bsResults,
         plAdviceText: props.plAdviceText,
         bsAdviceText: props.bsAdviceText,
+        analysisResults,
+        idealResult: props.idealResult,
+        idealReasoning: props.idealReasoning,
         diagramElements,
       });
     } catch (err) {
@@ -55,6 +80,7 @@ export function IntegratedReportTab(props: Props) {
         hasBSData={hasBSData}
         hasPLAdvice={!!props.plAdviceText}
         hasBSAdvice={!!props.bsAdviceText}
+        hasFAData={hasFAData}
         hasAnyData={hasAnyData}
         generating={generating}
         error={error}
@@ -70,6 +96,7 @@ export function IntegratedReportTab(props: Props) {
         <ReportPreviewSection
           plResults={props.plResults}
           bsResults={props.bsResults}
+          idealResult={props.idealResult}
           unit={props.unit}
           showCashSection={props.showCashSection}
         />
@@ -81,6 +108,7 @@ export function IntegratedReportTab(props: Props) {
 interface PreviewProps {
   plResults: BlockPuzzleResult[];
   bsResults: BalanceSheetResult[];
+  idealResult: BlockPuzzleResult | null;
   unit: BlockPuzzleUnit;
   showCashSection: boolean;
 }
@@ -90,7 +118,7 @@ interface PreviewProps {
  * data-pptx-export-id 付きで各図を描画し、html2canvas のキャプチャ対象とする。
  * UI上で「PPTXに何が含まれるか」を確認できる利点もある。
  */
-function ReportPreviewSection({ plResults, bsResults, unit, showCashSection }: PreviewProps) {
+function ReportPreviewSection({ plResults, bsResults, idealResult, unit, showCashSection }: PreviewProps) {
   return (
     <section className="bg-white border rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-bold text-gray-700">レポートプレビュー（PPTX出力対象）</h3>
@@ -128,6 +156,24 @@ function ReportPreviewSection({ plResults, bsResults, unit, showCashSection }: P
           ))}
         </div>
       </div>
+
+      {idealResult && (
+        <div>
+          <div className="text-xs font-semibold text-purple-700 mb-2">
+            AI理想P/L（最終ページ用）
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <div data-pptx-export-id="pl-ideal" className="bg-white">
+              <BlockPuzzleDiagram
+                result={idealResult}
+                unit={unit}
+                showCashSection={showCashSection}
+                variant="ideal"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -137,6 +183,7 @@ interface GenerateSectionProps {
   hasBSData: boolean;
   hasPLAdvice: boolean;
   hasBSAdvice: boolean;
+  hasFAData: boolean;
   hasAnyData: boolean;
   generating: boolean;
   error: string | null;
@@ -151,7 +198,7 @@ function GenerateSection(p: GenerateSectionProps) {
         経営レポート（PPTX出力）
       </h2>
       <p className="text-sm text-gray-600">
-        P/Lタブ・B/Sタブで入力したデータと、AIが生成したアドバイスを使って7スライドのPowerPointレポートを作成します。
+        P/Lタブ・B/Sタブで入力したデータ、AIが生成したアドバイス、財務分析（ローカルベンチマーク）の結果、AI理想P/Lを使って10スライドのPowerPointレポートを作成します。
         財務に詳しくない経営者の方にも見やすいシンプルな構成です。
       </p>
 
@@ -178,6 +225,12 @@ function GenerateSection(p: GenerateSectionProps) {
         ok={p.hasBSAdvice}
         okLabel="生成済み"
         ngLabel="未生成（任意）— B/Sタブで「AIアドバイス生成」"
+      />
+      <ChecklistRow
+        label="財務分析（ローカルベンチマーク）"
+        ok={p.hasFAData}
+        okLabel="算出可能"
+        ngLabel="未入力（任意）— 財務分析タブで業種・従業員数・B/S詳細を入力"
       />
 
       <div className="pt-2">
@@ -279,15 +332,18 @@ function KpiSection({ plResults, bsResults, hasAnyData }: KpiSectionProps) {
 function SlideListSection() {
   return (
     <section className="bg-white border rounded-lg p-4 space-y-2">
-      <h3 className="text-sm font-bold text-gray-700">レポート構成（7スライド）</h3>
+      <h3 className="text-sm font-bold text-gray-700">レポート構成（10スライド）</h3>
       <ol className="list-decimal pl-5 text-sm text-gray-700 space-y-1">
         <li>表紙（タイトル・対象期間・出力日）</li>
         <li>経営の概観（4つの主要KPI）</li>
         <li>損益の流れ（P/L 5期分のブロックパズル図）</li>
         <li>財務体質（B/S 5期分のブロックパズル図）</li>
+        <li>財務分析（ローカルベンチマーク6指標 + 総合グレード）</li>
+        <li>指標の意味（算式・分類・単位）</li>
         <li>AI 経営アドバイス（P/Lの改善アクション要約）</li>
         <li>AI 財務体質アドバイス（B/Sの改善アクション要約）</li>
         <li>改善アクション TOP3（両アドバイスから抜粋）</li>
+        <li>AIが提案する理想のP/L（ブロックパズル図 + 全体方針 + 主要KPI + 達成のためのアクション）</li>
       </ol>
     </section>
   );

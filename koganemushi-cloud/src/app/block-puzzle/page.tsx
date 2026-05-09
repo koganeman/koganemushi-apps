@@ -7,6 +7,7 @@ import { ReportTabs, type ReportTabKey } from "@/components/block-puzzle/tabs";
 import { PLTab } from "@/components/block-puzzle/pl-tab";
 import { BSTab } from "@/components/block-puzzle/bs-tab";
 import { IntegratedReportTab } from "@/components/block-puzzle/integrated-report-tab";
+import { FinancialAnalysisTab } from "@/components/block-puzzle/financial-analysis-tab";
 import { PdfImportButton } from "@/components/block-puzzle/pdf-import-button";
 import {
   calcBlockPuzzle,
@@ -21,6 +22,7 @@ import {
   type BlockPuzzleExportData,
 } from "@/stores/block-puzzle-store";
 import { useBalanceSheetStore } from "@/stores/balance-sheet-store";
+import { useFinancialAnalysisStore } from "@/stores/financial-analysis-store";
 import type { BalanceSheetExportData, BSPeriodInput } from "@/types/balance-sheet";
 import type { PLPeriodInput } from "@/types/block-puzzle";
 
@@ -60,11 +62,14 @@ function BlockPuzzlePageInner() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") as ReportTabKey | null;
   const [activeTab, setActiveTab] = useState<ReportTabKey>(
-    initialTab === "bs" || initialTab === "report" ? initialTab : "pl",
+    initialTab === "bs" || initialTab === "report" || initialTab === "analysis"
+      ? initialTab
+      : "pl",
   );
 
   const pl = useBlockPuzzleStore();
   const bs = useBalanceSheetStore();
+  const fa = useFinancialAnalysisStore();
 
   const plResults = useMemo(
     () => pl.periods.map((p) => calcBlockPuzzle(p)),
@@ -93,6 +98,17 @@ function BlockPuzzlePageInner() {
   const handleClear = () => {
     pl.resetPeriods();
     bs.resetPeriods();
+    fa.resetAnalysis();
+  };
+
+  const handleShiftPL = (next: PLPeriodInput) => {
+    pl.shiftAndInsertPeriod(next);
+    fa.shiftAndInsertEmpty();
+  };
+  const handleShiftBS = (next: BSPeriodInput) => {
+    bs.shiftAndInsertPeriod(next);
+    // shiftAndInsertEmpty は P/L 側で1回呼ばれれば十分（PdfImportButtonはPL→BSの順で呼ぶ）
+    // ただし P/L だけ・B/S だけのシフトは現状のフローでは発生しない
   };
 
   const handleExport = () => {
@@ -185,8 +201,8 @@ function BlockPuzzlePageInner() {
           onExport={handleExport}
           onLoadSample={handleLoadSample}
           onClear={handleClear}
-          onShiftPL={pl.shiftAndInsertPeriod}
-          onShiftBS={bs.shiftAndInsertPeriod}
+          onShiftPL={handleShiftPL}
+          onShiftBS={handleShiftBS}
         />
         <input
           ref={fileInputRef}
@@ -218,12 +234,20 @@ function BlockPuzzlePageInner() {
             onChange={bs.updateField}
           />
         )}
+        {activeTab === "analysis" && (
+          <FinancialAnalysisTab
+            plResults={plResults}
+            bsResults={bsResults}
+          />
+        )}
         {activeTab === "report" && (
           <IntegratedReportTab
             plResults={plResults}
             bsResults={bsResults}
             plAdviceText={pl.advice?.text ?? null}
             bsAdviceText={bs.advice?.text ?? null}
+            idealResult={idealResult}
+            idealReasoning={pl.ideal?.reasoning ?? null}
             unit={pl.unit}
             showCashSection={pl.showCashSection}
           />

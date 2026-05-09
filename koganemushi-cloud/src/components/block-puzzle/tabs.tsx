@@ -1,6 +1,6 @@
 "use client";
 
-export type ReportTabKey = "pl" | "bs" | "report";
+export type ReportTabKey = "pl" | "bs" | "analysis" | "report";
 
 interface Props {
   active: ReportTabKey;
@@ -10,6 +10,7 @@ interface Props {
 const TABS: { key: ReportTabKey; label: string }[] = [
   { key: "pl", label: "P/L（損益）" },
   { key: "bs", label: "B/S（貸借対照表）" },
+  { key: "analysis", label: "財務分析" },
   { key: "report", label: "経営レポート" },
 ];
 

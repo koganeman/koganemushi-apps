@@ -1,0 +1,72 @@
+{
+  "10": {
+    "midCapital": 50000000,
+    "midEmployees": 100,
+    "smallEmployees": 5
+  },
+  "11": {
+    "midCapital": 50000000,
+    "midEmployees": 100,
+    "smallEmployees": 5
+  },
+  "12": {
+    "midCapital": 50000000,
+    "midEmployees": 100,
+    "smallEmployees": 5
+  },
+  "13": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "14": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "01": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "02": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "03": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "04": {
+    "midCapital": 100000000,
+    "midEmployees": 100,
+    "smallEmployees": 5
+  },
+  "05": {
+    "midCapital": 50000000,
+    "midEmployees": 50,
+    "smallEmployees": 5
+  },
+  "06": {
+    "midCapital": 50000000,
+    "midEmployees": 50,
+    "smallEmployees": 5
+  },
+  "07": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "08": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  },
+  "09": {
+    "midCapital": 300000000,
+    "midEmployees": 300,
+    "smallEmployees": 20
+  }
+}
