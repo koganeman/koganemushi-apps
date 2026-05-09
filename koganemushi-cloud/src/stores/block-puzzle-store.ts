@@ -49,6 +49,8 @@ interface BlockPuzzleState {
   setPeriods: (periods: PLPeriodInput[]) => void;
   updateField: (index: number, field: keyof PLPeriodInput, value: number | string) => void;
   applyPdfToColumn: (index: number, next: PLPeriodInput) => void;
+  /** 過去期を1つ右にシフトし、next を最新期(index 0)に挿入。最古期は破棄。 */
+  shiftAndInsertPeriod: (next: PLPeriodInput) => void;
   setUnit: (unit: BlockPuzzleUnit) => void;
   setShowCashSection: (show: boolean) => void;
   resetPeriods: () => void;
@@ -96,6 +98,13 @@ export const useBlockPuzzleStore = create<BlockPuzzleState>()(
           // 借入金返済はPDFに載らないため、ユーザーの手入力値を保持
           out[index] = { ...next, loanRepayment: state.periods[index].loanRepayment };
           return { periods: out };
+        }),
+
+      shiftAndInsertPeriod: (next) =>
+        set((state) => {
+          const len = state.periods.length;
+          // 最新期の loanRepayment は新規期では未定なので next の値（通常0）をそのまま使う
+          return { periods: [next, ...state.periods.slice(0, len - 1)] };
         }),
 
       setUnit: (unit) => set({ unit }),

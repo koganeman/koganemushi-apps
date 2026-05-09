@@ -7,6 +7,7 @@ import { ReportTabs, type ReportTabKey } from "@/components/block-puzzle/tabs";
 import { PLTab } from "@/components/block-puzzle/pl-tab";
 import { BSTab } from "@/components/block-puzzle/bs-tab";
 import { IntegratedReportTab } from "@/components/block-puzzle/integrated-report-tab";
+import { PdfImportButton } from "@/components/block-puzzle/pdf-import-button";
 import {
   calcBlockPuzzle,
   createSamplePLPeriods,
@@ -20,7 +21,8 @@ import {
   type BlockPuzzleExportData,
 } from "@/stores/block-puzzle-store";
 import { useBalanceSheetStore } from "@/stores/balance-sheet-store";
-import type { BalanceSheetExportData } from "@/types/balance-sheet";
+import type { BalanceSheetExportData, BSPeriodInput } from "@/types/balance-sheet";
+import type { PLPeriodInput } from "@/types/block-puzzle";
 
 interface CombinedExportData {
   version: 2;
@@ -183,6 +185,8 @@ function BlockPuzzlePageInner() {
           onExport={handleExport}
           onLoadSample={handleLoadSample}
           onClear={handleClear}
+          onShiftPL={pl.shiftAndInsertPeriod}
+          onShiftBS={bs.shiftAndInsertPeriod}
         />
         <input
           ref={fileInputRef}
@@ -239,6 +243,8 @@ interface ControlPanelProps {
   onExport: () => void;
   onLoadSample: () => void;
   onClear: () => void;
+  onShiftPL: (next: PLPeriodInput) => void;
+  onShiftBS: (next: BSPeriodInput) => void;
 }
 
 function ControlPanel({
@@ -251,6 +257,8 @@ function ControlPanel({
   onExport,
   onLoadSample,
   onClear,
+  onShiftPL,
+  onShiftBS,
 }: ControlPanelProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 bg-white border rounded-lg p-3 bp-print-hide">
@@ -283,7 +291,12 @@ function ControlPanel({
           P/Lのキャッシュ欄を表示
         </label>
       </div>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2 flex-wrap">
+        <PdfImportButton
+          applyMode="shift"
+          onShiftPL={onShiftPL}
+          onShiftBS={onShiftBS}
+        />
         <Button size="sm" variant="outline" onClick={onPrint}>
           PDF出力
         </Button>

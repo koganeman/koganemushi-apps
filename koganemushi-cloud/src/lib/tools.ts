@@ -96,7 +96,7 @@ export const TOOLS: ToolInfo[] = [
     name: "お金のブロックパズル + 貸借対照表",
     description: "P/Lと貸借対照表を5期分ブロックパズル図で可視化、AI経営アドバイス、PPTXレポート出力",
     href: "/block-puzzle",
-    status: "dev",
+    status: "active",
   },
   {
     id: "entaizei",

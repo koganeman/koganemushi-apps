@@ -15,24 +15,57 @@ import {
 import type { PLPeriodInput } from "@/types/block-puzzle";
 import type { BSPeriodInput } from "@/types/balance-sheet";
 
-interface Props {
-  columnIndex: number;
-  /** P/L入力を該当列に適用 */
-  onApplyPL: (index: number, next: PLPeriodInput) => void;
-  /** B/S入力を該当列に適用 */
-  onApplyBS: (index: number, next: BSPeriodInput) => void;
-}
-
 export interface ExtractedCombined {
   pl: ExtractedPLData;
   bs: ExtractedBSData;
 }
 
-export function PdfImportButton({ columnIndex, onApplyPL, onApplyBS }: Props) {
+/** overwrite: 指定列に上書き / shift: 過去期を1つ右にシフトし最新期に挿入 */
+export type PdfApplyMode = "overwrite" | "shift";
+
+type Props =
+  | {
+      applyMode?: "overwrite";
+      buttonLabel?: string;
+      buttonSize?: "xs" | "sm";
+      columnIndex: number;
+      onApplyPL: (index: number, next: PLPeriodInput) => void;
+      onApplyBS: (index: number, next: BSPeriodInput) => void;
+    }
+  | {
+      applyMode: "shift";
+      buttonLabel?: string;
+      buttonSize?: "xs" | "sm";
+      onShiftPL: (next: PLPeriodInput) => void;
+      onShiftBS: (next: BSPeriodInput) => void;
+    };
+
+function resolveMode(props: Props): PdfApplyMode {
+  return props.applyMode === "shift" ? "shift" : "overwrite";
+}
+
+function makeApplyHandler(props: Props, clear: () => void) {
+  return ({ plInput, bsInput }: { plInput: PLPeriodInput; bsInput: BSPeriodInput }) => {
+    if (props.applyMode === "shift") {
+      props.onShiftPL(plInput);
+      props.onShiftBS(bsInput);
+    } else {
+      props.onApplyPL(props.columnIndex, plInput);
+      props.onApplyBS(props.columnIndex, bsInput);
+    }
+    clear();
+  };
+}
+
+export function PdfImportButton(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [extracted, setExtracted] = useState<ExtractedCombined | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const mode = resolveMode(props);
+  const buttonSize = props.buttonSize ?? (mode === "shift" ? "sm" : "xs");
+  const buttonLabel = props.buttonLabel ?? (mode === "shift" ? "新年度PDF取込" : "PDF読込");
 
   const onPick = () => inputRef.current?.click();
 
@@ -44,9 +77,10 @@ export function PdfImportButton({ columnIndex, onApplyPL, onApplyBS }: Props) {
     setError(null);
     try {
       const lines = await extractTextLinesFromPdf(file);
-      const pl = parsePLFromPdfLines(lines);
-      const bs = parseBSFromPdfLines(lines);
-      setExtracted({ pl, bs });
+      setExtracted({
+        pl: parsePLFromPdfLines(lines),
+        bs: parseBSFromPdfLines(lines),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "PDF読込エラー");
     } finally {
@@ -54,10 +88,12 @@ export function PdfImportButton({ columnIndex, onApplyPL, onApplyBS }: Props) {
     }
   };
 
+  const handleApply = makeApplyHandler(props, () => setExtracted(null));
+
   return (
     <>
-      <Button size="xs" variant="outline" onClick={onPick} disabled={loading}>
-        {loading ? "読込中..." : "PDF読込"}
+      <Button size={buttonSize} variant="outline" onClick={onPick} disabled={loading}>
+        {loading ? "読込中..." : buttonLabel}
       </Button>
       <input
         ref={inputRef}
@@ -73,12 +109,9 @@ export function PdfImportButton({ columnIndex, onApplyPL, onApplyBS }: Props) {
         <PdfImportDialog
           open={!!extracted}
           extracted={extracted}
+          mode={mode}
           onCancel={() => setExtracted(null)}
-          onApply={({ plInput, bsInput }) => {
-            onApplyPL(columnIndex, plInput);
-            onApplyBS(columnIndex, bsInput);
-            setExtracted(null);
-          }}
+          onApply={handleApply}
         />
       )}
     </>

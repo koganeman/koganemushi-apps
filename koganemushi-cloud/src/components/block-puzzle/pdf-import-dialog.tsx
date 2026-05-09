@@ -24,6 +24,8 @@ import type { ExtractedCombined } from "./pdf-import-button";
 interface Props {
   open: boolean;
   extracted: ExtractedCombined;
+  /** "overwrite": 列に上書き（既定） / "shift": 過去期を1つ右にずらして最新期に挿入 */
+  mode?: "overwrite" | "shift";
   onCancel: () => void;
   onApply: (args: { plInput: PLPeriodInput; bsInput: BSPeriodInput }) => void;
 }
@@ -58,7 +60,8 @@ const BS_RAW_ROWS: { label: string; key: keyof ExtractedBSRawValues }[] = [
   { label: "純資産合計", key: "netAssetsTotal" },
 ];
 
-export function PdfImportDialog({ open, extracted, onCancel, onApply }: Props) {
+export function PdfImportDialog({ open, extracted, mode = "overwrite", onCancel, onApply }: Props) {
+  const isShiftMode = mode === "shift";
   const plMapped = useMemo(() => mapExtractedToInput(extracted.pl), [extracted.pl]);
   const bsMapped = useMemo(() => mapExtractedBSToInput(extracted.bs), [extracted.bs]);
   const [periodLabel, setPeriodLabel] = useState(
@@ -80,14 +83,13 @@ export function PdfImportDialog({ open, extracted, onCancel, onApply }: Props) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onCancel(); } }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>PDF読込結果の確認（P/L + 貸借対照表）</DialogTitle>
+          <DialogTitle>{titleFor(mode)}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
-          <p className="text-xs text-gray-600">
-            1つのPDFから損益計算書（P/L）と貸借対照表（B/S）の両方を抽出しました。
-            「適用」を押すと該当列のP/L・B/S両方の入力値が更新されます。
-          </p>
+          <p className="text-xs text-gray-600">{descriptionFor(mode)}</p>
+
+          {isShiftMode && <ShiftModeBanner />}
 
           <label className="flex items-center gap-2">
             <span className="text-gray-700 w-20">期末日</span>
@@ -180,7 +182,7 @@ export function PdfImportDialog({ open, extracted, onCancel, onApply }: Props) {
             <Button variant="outline" onClick={onCancel}>
               キャンセル
             </Button>
-            <Button onClick={apply}>適用（P/L + B/Sを更新）</Button>
+            <Button onClick={apply}>{applyButtonLabelFor(mode)}</Button>
           </div>
         </div>
       </DialogContent>
@@ -191,6 +193,34 @@ export function PdfImportDialog({ open, extracted, onCancel, onApply }: Props) {
 interface DerivationProps {
   d: ReturnType<typeof mapExtractedToInput>["derivation"];
   pdfPreTax: number | undefined;
+}
+
+function titleFor(mode: "overwrite" | "shift"): string {
+  return mode === "shift"
+    ? "新年度PDFの取込確認（P/L + 貸借対照表）"
+    : "PDF読込結果の確認（P/L + 貸借対照表）";
+}
+
+function descriptionFor(mode: "overwrite" | "shift"): string {
+  if (mode === "shift") {
+    return "1つのPDFから損益計算書（P/L）と貸借対照表（B/S）の両方を抽出しました。「適用」を押すと、過去期を1つずつ右にずらして、この期を最新期（第1期）に挿入します。最古の期（第5期）のデータは破棄されます。";
+  }
+  return "1つのPDFから損益計算書（P/L）と貸借対照表（B/S）の両方を抽出しました。「適用」を押すと該当列のP/L・B/S両方の入力値が更新されます。";
+}
+
+function applyButtonLabelFor(mode: "overwrite" | "shift"): string {
+  return mode === "shift"
+    ? "最新期として挿入（過去期を1つ右にシフト）"
+    : "適用（P/L + B/Sを更新）";
+}
+
+function ShiftModeBanner() {
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-800">
+      ⚠ シフト挿入モード: 適用すると <strong>最古期(第5期)のデータが失われます</strong>。
+      事前に「エクスポート」でJSON保存することを推奨します。
+    </div>
+  );
 }
 
 function PLDerivationDetail({ d, pdfPreTax }: DerivationProps) {

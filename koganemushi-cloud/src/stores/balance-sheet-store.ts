@@ -29,6 +29,8 @@ interface BalanceSheetState {
     value: number | string,
   ) => void;
   applyPdfToColumn: (index: number, next: BSPeriodInput) => void;
+  /** 過去期を1つ右にシフトし、next を最新期(index 0)に挿入。最古期は破棄。 */
+  shiftAndInsertPeriod: (next: BSPeriodInput) => void;
   setUnit: (unit: BalanceSheetUnit) => void;
   resetPeriods: () => void;
   setAdvice: (advice: BalanceSheetAdvice | null) => void;
@@ -67,6 +69,12 @@ export const useBalanceSheetStore = create<BalanceSheetState>()(
           const out = state.periods.slice();
           out[index] = next;
           return { periods: out };
+        }),
+
+      shiftAndInsertPeriod: (next) =>
+        set((state) => {
+          const len = state.periods.length;
+          return { periods: [next, ...state.periods.slice(0, len - 1)] };
         }),
 
       setUnit: (unit) => set({ unit }),
