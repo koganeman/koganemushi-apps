@@ -181,14 +181,25 @@ function BlockPuzzlePageInner() {
   return (
     <div className="min-h-screen bg-gray-50 bp-printable">
       <main className="max-w-[1800px] ml-0 mr-auto p-4 space-y-4">
-        <header className="space-y-1">
-          <h1 className="text-xl font-bold">お金のブロックパズル + 貸借対照表</h1>
-          <p className="text-sm text-gray-600 bp-print-hide">
-            P/Lと貸借対照表を5期分のブロックパズル図で可視化し、AIの経営アドバイスをもとに経営レポート（PPTX）を出力できます。
-          </p>
-          <p className="bp-print-only text-xs text-gray-600">
-            出力日時: {printTimestamp}
-          </p>
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold">お金のブロックパズル + 貸借対照表</h1>
+            <p className="text-sm text-gray-600 bp-print-hide">
+              P/Lと貸借対照表を5期分のブロックパズル図で可視化し、AIの経営アドバイスをもとに経営レポート（PPTX）を出力できます。
+            </p>
+            <p className="bp-print-only text-xs text-gray-600">
+              出力日時: {printTimestamp}
+            </p>
+          </div>
+          <a
+            href="https://www.notion.so/35ced47bc5758073bb1ddcc71b0d9413?source=copy_link"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bp-print-hide inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 hover:border-blue-400 transition-colors"
+          >
+            マニュアルを開く
+            <span aria-hidden="true">↗</span>
+          </a>
         </header>
 
         <ControlPanel
