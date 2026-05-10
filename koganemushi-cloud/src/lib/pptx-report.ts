@@ -81,63 +81,134 @@ export async function generateReportPPTX(args: GenerateArgs): Promise<void> {
 
 async function addCoverSlide(pptx: Pptx, args: GenerateArgs): Promise<void> {
   const slide = pptx.addSlide();
-  slide.background = { color: "F8FAFC" };
+  slide.background = { color: "FFFFFF" };
 
   const span = deriveSpanLabels(args.plResults.map((r) => r.periodLabel));
   const today = new Date().toLocaleDateString("ja-JP");
 
+  renderCoverHero(slide);
+  renderCoverTitleBlock(slide);
+  renderCoverInfoCard(slide, span.oldest, span.newest, today);
+  renderCoverFooter(slide);
+}
+
+function renderCoverHero(slide: Slide): void {
+  slide.addShape("rect", {
+    x: 0, y: 0, w: SLIDE_W, h: 4.5,
+    fill: { color: COLORS.primary },
+    line: { type: "none" },
+  });
+  slide.addShape("ellipse", {
+    x: 10.6, y: -1.8, w: 4.8, h: 4.8,
+    fill: { color: "FFFFFF", transparency: 88 },
+    line: { type: "none" },
+  });
+  slide.addShape("ellipse", {
+    x: -1.2, y: 1.9, w: 3.6, h: 3.6,
+    fill: { color: COLORS.accent, transparency: 75 },
+    line: { type: "none" },
+  });
+  slide.addShape("ellipse", {
+    x: 9.2, y: 2.5, w: 1.6, h: 1.6,
+    fill: { color: COLORS.highlight, transparency: 70 },
+    line: { type: "none" },
+  });
+}
+
+function renderCoverTitleBlock(slide: Slide): void {
+  slide.addText("MANAGEMENT REPORT", {
+    x: 0.5, y: 0.95, w: SLIDE_W - 1, h: 0.35,
+    fontSize: 14, bold: true, color: "BFDBFE",
+    fontFace: FONT_FACE, align: "center", charSpacing: 8,
+  });
   slide.addText("経営レポート", {
-    x: 0.5,
-    y: 1.5,
-    w: SLIDE_W - 1,
-    h: 1.2,
-    fontSize: 54,
-    bold: true,
-    color: COLORS.text,
-    fontFace: FONT_FACE,
-    align: "center",
+    x: 0.5, y: 1.4, w: SLIDE_W - 1, h: 1.3,
+    fontSize: 60, bold: true, color: "FFFFFF",
+    fontFace: FONT_FACE, align: "center",
   });
-  slide.addText("お金のブロックパズル + 貸借対照表ブロックパズル", {
-    x: 0.5,
-    y: 2.8,
-    w: SLIDE_W - 1,
-    h: 0.6,
-    fontSize: 18,
-    color: COLORS.subtext,
-    fontFace: FONT_FACE,
-    align: "center",
+  slide.addShape("rect", {
+    x: SLIDE_W / 2 - 0.7, y: 2.78, w: 1.4, h: 0.08,
+    fill: { color: COLORS.highlight },
+    line: { type: "none" },
   });
-  slide.addText(`対象期間: ${span.oldest} 〜 ${span.newest}`, {
-    x: 0.5,
-    y: 4.0,
-    w: SLIDE_W - 1,
-    h: 0.5,
-    fontSize: 20,
-    color: COLORS.text,
-    fontFace: FONT_FACE,
-    align: "center",
+  slide.addText("お金のブロックパズル × 貸借対照表ブロックパズル", {
+    x: 0.5, y: 3.0, w: SLIDE_W - 1, h: 0.5,
+    fontSize: 18, color: "DBEAFE",
+    fontFace: FONT_FACE, align: "center",
   });
-  slide.addText(`出力日: ${today}`, {
-    x: 0.5,
-    y: 4.6,
-    w: SLIDE_W - 1,
-    h: 0.4,
-    fontSize: 14,
-    color: COLORS.subtext,
-    fontFace: FONT_FACE,
-    align: "center",
+}
+
+function renderCoverInfoCard(slide: Slide, oldest: string, newest: string, today: string): void {
+  const cardW = 8.2;
+  const cardH = 1.6;
+  const cardX = (SLIDE_W - cardW) / 2;
+  const cardY = 4.0;
+  const colW = cardW / 2;
+
+  slide.addShape("roundRect", {
+    x: cardX + 0.06, y: cardY + 0.1, w: cardW, h: cardH,
+    fill: { color: "1F2937", transparency: 78 },
+    line: { type: "none" },
+    rectRadius: 0.12,
+  });
+  slide.addShape("roundRect", {
+    x: cardX, y: cardY, w: cardW, h: cardH,
+    fill: { color: "FFFFFF" },
+    line: { color: "E5E7EB", width: 1 },
+    rectRadius: 0.12,
+  });
+  slide.addShape("line", {
+    x: cardX + colW, y: cardY + 0.3, w: 0, h: cardH - 0.6,
+    line: { color: "E5E7EB", width: 1 },
+  });
+
+  renderCoverCardColumn(slide, {
+    x: cardX, y: cardY, w: colW,
+    label: "対象期間",
+    value: `${oldest}  〜  ${newest}`,
+    valueColor: COLORS.primary,
+  });
+  renderCoverCardColumn(slide, {
+    x: cardX + colW, y: cardY, w: colW,
+    label: "出力日",
+    value: today,
+    valueColor: COLORS.text,
+  });
+}
+
+interface CoverCardColumnArgs {
+  x: number;
+  y: number;
+  w: number;
+  label: string;
+  value: string;
+  valueColor: string;
+}
+
+function renderCoverCardColumn(slide: Slide, a: CoverCardColumnArgs): void {
+  slide.addText(a.label, {
+    x: a.x, y: a.y + 0.25, w: a.w, h: 0.35,
+    fontSize: 11, color: COLORS.subtext, fontFace: FONT_FACE,
+    align: "center", charSpacing: 6,
+  });
+  slide.addText(a.value, {
+    x: a.x, y: a.y + 0.65, w: a.w, h: 0.75,
+    fontSize: 18, bold: true, color: a.valueColor, fontFace: FONT_FACE,
+    align: "center", valign: "middle",
+  });
+}
+
+function renderCoverFooter(slide: Slide): void {
+  slide.addShape("rect", {
+    x: 0, y: 7.42, w: SLIDE_W, h: 0.08,
+    fill: { color: COLORS.accent },
+    line: { type: "none" },
   });
   slide.addText(
     "※ 本レポートは西順一郎先生のSTRAC図表をもとに和仁達也先生が改良した「お金のブロックパズル」と、貸借対照表（B/S）の図解で構成されています。",
     {
-      x: 1,
-      y: 6.5,
-      w: SLIDE_W - 2,
-      h: 0.6,
-      fontSize: 10,
-      color: COLORS.subtext,
-      fontFace: FONT_FACE,
-      align: "center",
+      x: 1, y: 6.7, w: SLIDE_W - 2, h: 0.6,
+      fontSize: 10, color: COLORS.subtext, fontFace: FONT_FACE, align: "center",
     },
   );
 }

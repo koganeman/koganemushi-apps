@@ -66,8 +66,8 @@ function nullableToString(v: number | null | undefined): string {
 
 export function IdealPLFormDialog(props: Props) {
   return (
-    <Dialog open={props.open} onOpenChange={(v) => { if (!v) { props.onCancel(); } }}>
-      <DialogContent className="max-w-xl">
+    <Dialog open={props.open} onOpenChange={(v) => { if (!v) { props.onCancel(); } }} modal={false}>
+      <DialogContent placement="right" showBackdrop={false}>
         <DialogHeader>
           <DialogTitle>AI理想P/L 生成パラメータ</DialogTitle>
         </DialogHeader>
