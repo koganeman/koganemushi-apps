@@ -192,7 +192,7 @@ function BlockPuzzlePageInner() {
             </p>
           </div>
           <a
-            href="https://www.notion.so/35ced47bc5758073bb1ddcc71b0d9413?source=copy_link"
+            href="https://peach-fin-48b.notion.site/35ced47bc5758073bb1ddcc71b0d9413"
             target="_blank"
             rel="noopener noreferrer"
             className="bp-print-hide inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 hover:border-blue-400 transition-colors"
