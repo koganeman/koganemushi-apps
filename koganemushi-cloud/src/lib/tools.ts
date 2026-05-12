@@ -107,10 +107,10 @@ export const TOOLS: ToolInfo[] = [
   },
   {
     id: "shikin-guri",
-    name: "資金繰り表 for freee & MF",
-    description: "freee・MF連携の資金繰り表作成",
+    name: "資金繰り表",
+    description: "36ヶ月の資金繰り実績表と予測表、口座残高明細表（CSV取込対応）",
     href: "/shikin-guri",
-    status: "coming-soon",
+    status: "dev",
   },
   {
     id: "shouhizei-hantei",
