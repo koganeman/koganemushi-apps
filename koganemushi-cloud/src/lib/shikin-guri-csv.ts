@@ -1,4 +1,4 @@
-import type { MonthKey } from "@/types/shikin-guri";
+import type { MeisaiRow, MonthKey } from "@/types/shikin-guri";
 import { parseJpMonthHeader } from "@/lib/shikin-guri-months";
 import { OPENING_BALANCE_LABEL, SUBJECT_BY_LABEL } from "@/lib/shikin-guri-subjects";
 
@@ -188,4 +188,59 @@ export function importAccountsCsv(text: string): AccountCsvImportResult {
     accounts.push({ name, balances });
   }
   return { months, accounts, unknownMonthHeaders };
+}
+
+export interface MeisaiCsvImportResult {
+  rows: MeisaiRow[];
+  months: MonthKey[];
+  unknownLabels: string[];
+  unknownMonthHeaders: string[];
+}
+
+export function importMeisaiCsv(text: string): MeisaiCsvImportResult {
+  const rows = parseCsv(text);
+  if (rows.length === 0) {
+    return { rows: [], months: [], unknownLabels: [], unknownMonthHeaders: [] };
+  }
+  const header = rows[0];
+  const months: MonthKey[] = [];
+  const monthColIndex: number[] = [];
+  const unknownMonthHeaders: string[] = [];
+  for (let i = 2; i < header.length; i++) {
+    const key = parseJpMonthHeader(header[i]);
+    if (key) {
+      months.push(key);
+      monthColIndex.push(i);
+    } else if (header[i].trim() !== "") {
+      unknownMonthHeaders.push(header[i]);
+    }
+  }
+  const result: MeisaiRow[] = [];
+  const unknownSet = new Set<string>();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const label = (row[0] ?? "").trim();
+    const description = (row[1] ?? "").trim();
+    if (!label) { continue; }
+    const subject = SUBJECT_BY_LABEL[label];
+    if (!subject) {
+      unknownSet.add(label);
+      continue;
+    }
+    const amounts: Record<MonthKey, number> = {};
+    let anyNonZero = false;
+    for (let i = 0; i < months.length; i++) {
+      const v = parseYenLoose(row[monthColIndex[i]]);
+      amounts[months[i]] = v;
+      if (v !== 0) { anyNonZero = true; }
+    }
+    if (!anyNonZero) { continue; }
+    result.push({ subjectId: subject.id, description, amounts });
+  }
+  return {
+    rows: result,
+    months,
+    unknownLabels: Array.from(unknownSet),
+    unknownMonthHeaders,
+  };
 }

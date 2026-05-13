@@ -144,7 +144,7 @@ export default function ShikinGuriPage() {
       <PeriodConfigBar />
       <ConsistencyBanner />
 
-      <main className="max-w-[1800px] mx-auto">
+      <main>
         {activeTab === "cashflow" && <CashflowTable />}
         {activeTab === "accounts" && <AccountsTable />}
       </main>

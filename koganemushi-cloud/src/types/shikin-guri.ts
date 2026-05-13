@@ -32,17 +32,24 @@ export interface AccountRow {
   balances: Record<MonthKey, number>;
 }
 
+export interface MeisaiRow {
+  subjectId: string;
+  description: string;
+  amounts: Record<MonthKey, number>;
+}
+
 export interface ShikinGuriExportData {
   version: number;
   period?: PeriodConfig;
   cashflow?: CashflowMatrix;
   accounts?: AccountRow[];
+  meisai?: MeisaiRow[];
 }
 
-/** 過去平均オプション */
-export interface PastAverageOptions {
+/** 列コピー オプション */
+export interface CopyColumnOptions {
   subjectIds: string[];
+  sourceMonth: MonthKey;
   targetMonths: MonthKey[];
-  windowMonths: 3 | 6 | 12;
   overwriteExisting: boolean;
 }

@@ -6,7 +6,6 @@ import type {
   SubjectKind,
 } from "@/types/shikin-guri";
 import { SUBJECTS } from "@/lib/shikin-guri-subjects";
-import { addMonths } from "@/lib/shikin-guri-months";
 
 export const BALANCE_TOLERANCE = 1;
 
@@ -183,21 +182,6 @@ export function checkConsistency(
     }
   }
   return issues;
-}
-
-/** 特定の科目について、起点月の直前 window ヶ月の平均を返す（ゼロも含めて平均） */
-export function pastAverage(
-  matrix: CashflowMatrix,
-  subjectId: string,
-  pivotMonth: MonthKey,
-  windowMonths: 3 | 6 | 12
-): number {
-  let sum = 0;
-  for (let i = 1; i <= windowMonths; i++) {
-    const m = addMonths(pivotMonth, -i);
-    sum += matrix.cells[subjectId]?.[m] ?? 0;
-  }
-  return Math.round(sum / windowMonths);
 }
 
 /** 月が予測月（current より後）か */

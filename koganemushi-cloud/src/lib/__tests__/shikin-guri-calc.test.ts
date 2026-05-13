@@ -10,7 +10,6 @@ import {
   deriveCashflow,
   deriveAccounts,
   checkConsistency,
-  pastAverage,
   getSubjectIds,
 } from "../shikin-guri-calc";
 import { importCashflowCsv, importAccountsCsv, parseCsv } from "../shikin-guri-csv";
@@ -221,28 +220,6 @@ describe("checkConsistency", () => {
     const d = deriveCashflow(matrix, months);
     const ad = deriveAccounts(accounts, months);
     expect(checkConsistency(d, ad, months)).toHaveLength(0);
-  });
-});
-
-describe("pastAverage", () => {
-  it("直近3ヶ月平均（ゼロも含む）", () => {
-    const matrix: CashflowMatrix = {
-      openingBalance: 0,
-      cells: {
-        uriageNyukin: { "2025-07": 100, "2025-08": 200, "2025-09": 300 },
-      },
-    };
-    // 2025-10 起点で過去3ヶ月 = 7,8,9 → 平均200
-    expect(pastAverage(matrix, "uriageNyukin", "2025-10", 3)).toBe(200);
-  });
-
-  it("空欄は0扱い", () => {
-    const matrix: CashflowMatrix = {
-      openingBalance: 0,
-      cells: { uriageNyukin: { "2025-09": 300 } },
-    };
-    // 7,8は空欄=0、9=300 → 平均 100
-    expect(pastAverage(matrix, "uriageNyukin", "2025-10", 3)).toBe(100);
   });
 });
 

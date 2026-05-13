@@ -14,7 +14,8 @@ import {
 } from "@/lib/shikin-guri-subjects";
 import { EditableYenCell } from "./editable-yen-cell";
 import { CsvImportButton } from "./csv-import-button";
-import { PastAverageDialog } from "./past-average-dialog";
+import { CopyColumnDialog } from "./copy-column-dialog";
+import { MeisaiPopup } from "./meisai-popup";
 import type { SubjectSection, MonthKey } from "@/types/shikin-guri";
 
 const SECTION_ORDER: SubjectSection[] = ["keijou", "keijouGai", "zaimu"];
@@ -35,11 +36,13 @@ const COL_WIDTH = 110;
 export function CashflowTable() {
   const period = useShikinGuriStore((s) => s.period);
   const cashflow = useShikinGuriStore((s) => s.cashflow);
+  const meisai = useShikinGuriStore((s) => s.meisai);
   const setCell = useShikinGuriStore((s) => s.setCashflowCell);
   const setOpening = useShikinGuriStore((s) => s.setOpeningBalance);
   const setPeriod = useShikinGuriStore((s) => s.setPeriod);
 
-  const [showAvgDialog, setShowAvgDialog] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [meisaiPopup, setMeisaiPopup] = useState<{ subjectId: string; month?: MonthKey } | null>(null);
 
   const months = useMemo(
     () => enumerateMonths(period.startMonth, PERIOD_LENGTH_MONTHS),
@@ -47,6 +50,19 @@ export function CashflowTable() {
   );
 
   const derived = useMemo(() => deriveCashflow(cashflow, months), [cashflow, months]);
+
+  /** 明細データがある (subjectId, month) のキーセット ＋ 科目だけのセット */
+  const { meisaiSubjects, meisaiSubjectMonth } = useMemo(() => {
+    const subjects = new Set<string>();
+    const cells = new Set<string>();
+    for (const row of meisai) {
+      subjects.add(row.subjectId);
+      for (const [m, v] of Object.entries(row.amounts)) {
+        if (v !== 0) { cells.add(`${row.subjectId}|${m}`); }
+      }
+    }
+    return { meisaiSubjects: subjects, meisaiSubjectMonth: cells };
+  }, [meisai]);
 
   const headerCellClass = (m: MonthKey) =>
     isForecastMonth(m, period.currentMonth) ? "bg-amber-100" : "bg-blue-100";
@@ -58,15 +74,16 @@ export function CashflowTable() {
       {/* ツールバー */}
       <div className="flex items-center gap-2 mb-2">
         <CsvImportButton label="CSV取込（資金繰り表）" mode="cashflow" title="資金繰り実績表CSVを取り込む" />
+        <CsvImportButton label="CSV取込（明細表）" mode="meisai" title="明細表CSVを取り込む" />
         <button
           type="button"
-          onClick={() => setShowAvgDialog(true)}
+          onClick={() => setShowCopyDialog(true)}
           className="text-xs border border-green-500 text-green-700 rounded px-3 py-1 hover:bg-green-50 transition-colors"
         >
-          過去平均で予測月を埋める…
+          列の値を予測月にコピー…
         </button>
         <span className="text-xs text-gray-500 ml-2">
-          ＊ 青ヘッダ=実績月、橙ヘッダ=予測月。月ヘッダ右の ▸ ボタンで「現在月」を変更可能。
+          ＊ 青ヘッダ=実績月、橙ヘッダ=予測月。月ヘッダ右の ▸ ボタンで「現在月」を変更可能。科目名 / セルクリックで明細表示。
         </span>
       </div>
 
@@ -157,6 +174,9 @@ export function CashflowTable() {
                   cellBg={cellBg}
                   setCell={setCell}
                   cashflow={cashflow}
+                  meisaiSubjects={meisaiSubjects}
+                  meisaiSubjectMonth={meisaiSubjectMonth}
+                  onOpenMeisai={(subjectId, month) => setMeisaiPopup({ subjectId, month })}
                 />
               );
             })}
@@ -196,12 +216,18 @@ export function CashflowTable() {
         </table>
       </div>
 
-      {showAvgDialog && <PastAverageDialog onClose={() => setShowAvgDialog(false)} />}
+      {showCopyDialog && <CopyColumnDialog onClose={() => setShowCopyDialog(false)} />}
+      {meisaiPopup && (
+        <MeisaiPopup
+          subjectId={meisaiPopup.subjectId}
+          month={meisaiPopup.month}
+          onClose={() => setMeisaiPopup(null)}
+        />
+      )}
     </div>
   );
 }
 
-// 二重 EditableYenCell 行（収入/支出の見出し）
 interface SectionGroupProps {
   section: SubjectSection;
   incomeSubjects: { id: string; label: string }[];
@@ -211,6 +237,9 @@ interface SectionGroupProps {
   cellBg: (m: MonthKey) => string;
   setCell: (subjectId: string, m: MonthKey, value: number) => void;
   cashflow: { cells: Record<string, Record<MonthKey, number>> };
+  meisaiSubjects: Set<string>;
+  meisaiSubjectMonth: Set<string>;
+  onOpenMeisai: (subjectId: string, month?: MonthKey) => void;
 }
 
 function SectionGroup({
@@ -222,6 +251,9 @@ function SectionGroup({
   cellBg,
   setCell,
   cashflow,
+  meisaiSubjects,
+  meisaiSubjectMonth,
+  onOpenMeisai,
 }: SectionGroupProps) {
   const sectionBg = SECTION_BG[section];
   const headerBg = SECTION_HEADER_BG[section];
@@ -259,20 +291,18 @@ function SectionGroup({
 
       {/* 収入科目 */}
       {incomeSubjects.map((s) => (
-        <tr key={s.id} className={sectionBg}>
-          <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
-            　{s.label}
-          </td>
-          {months.map((m) => (
-            <td key={m} className={`border p-0 ${cellBg(m)}`}>
-              <EditableYenCell
-                value={cashflow.cells[s.id]?.[m] ?? 0}
-                onChange={(v) => setCell(s.id, m, v)}
-                ariaLabel={`${s.label} ${m}`}
-              />
-            </td>
-          ))}
-        </tr>
+        <SubjectRow
+          key={s.id}
+          subject={s}
+          months={months}
+          sectionBg={sectionBg}
+          cellBg={cellBg}
+          cashflow={cashflow}
+          setCell={setCell}
+          meisaiSubjects={meisaiSubjects}
+          meisaiSubjectMonth={meisaiSubjectMonth}
+          onOpenMeisai={onOpenMeisai}
+        />
       ))}
       <tr className={`${sectionBg} font-medium`}>
         <td className="border px-2 py-1 sticky left-0 z-10 bg-gray-50">　収入計</td>
@@ -285,20 +315,18 @@ function SectionGroup({
 
       {/* 支出科目 */}
       {expenseSubjects.map((s) => (
-        <tr key={s.id} className={sectionBg}>
-          <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
-            　{s.label}
-          </td>
-          {months.map((m) => (
-            <td key={m} className={`border p-0 ${cellBg(m)}`}>
-              <EditableYenCell
-                value={cashflow.cells[s.id]?.[m] ?? 0}
-                onChange={(v) => setCell(s.id, m, v)}
-                ariaLabel={`${s.label} ${m}`}
-              />
-            </td>
-          ))}
-        </tr>
+        <SubjectRow
+          key={s.id}
+          subject={s}
+          months={months}
+          sectionBg={sectionBg}
+          cellBg={cellBg}
+          cashflow={cashflow}
+          setCell={setCell}
+          meisaiSubjects={meisaiSubjects}
+          meisaiSubjectMonth={meisaiSubjectMonth}
+          onOpenMeisai={onOpenMeisai}
+        />
       ))}
       <tr className={`${sectionBg} font-medium`}>
         <td className="border px-2 py-1 sticky left-0 z-10 bg-gray-50">　支出計</td>
@@ -321,6 +349,78 @@ function SectionGroup({
         ))}
       </tr>
     </>
+  );
+}
+
+interface SubjectRowProps {
+  subject: { id: string; label: string };
+  months: MonthKey[];
+  sectionBg: string;
+  cellBg: (m: MonthKey) => string;
+  cashflow: { cells: Record<string, Record<MonthKey, number>> };
+  setCell: (subjectId: string, m: MonthKey, value: number) => void;
+  meisaiSubjects: Set<string>;
+  meisaiSubjectMonth: Set<string>;
+  onOpenMeisai: (subjectId: string, month?: MonthKey) => void;
+}
+
+function SubjectRow({
+  subject: s,
+  months,
+  sectionBg,
+  cellBg,
+  cashflow,
+  setCell,
+  meisaiSubjects,
+  meisaiSubjectMonth,
+  onOpenMeisai,
+}: SubjectRowProps) {
+  const labelClickable = meisaiSubjects.has(s.id);
+  return (
+    <tr className={sectionBg}>
+      <td className="border px-2 py-1 sticky left-0 z-10 bg-white">
+        {labelClickable ? (
+          <button
+            type="button"
+            onClick={() => onOpenMeisai(s.id)}
+            className="text-left w-full text-blue-700 hover:underline"
+            title={`${s.label} の明細を表示`}
+          >
+            　{s.label}
+          </button>
+        ) : (
+          <span className="text-gray-700" title="明細表CSVを取込むと内訳表示が利用できます">
+            　{s.label}
+          </span>
+        )}
+      </td>
+      {months.map((m) => {
+        const hasMeisai = meisaiSubjectMonth.has(`${s.id}|${m}`);
+        return (
+          <td key={m} className={`border p-0 ${cellBg(m)} relative group`}>
+            <EditableYenCell
+              value={cashflow.cells[s.id]?.[m] ?? 0}
+              onChange={(v) => setCell(s.id, m, v)}
+              ariaLabel={`${s.label} ${m}`}
+            />
+            {hasMeisai && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenMeisai(s.id, m);
+                }}
+                title={`${s.label} ${m} の明細を表示`}
+                className="absolute top-0 right-0 text-[10px] leading-none px-1 py-0.5 text-blue-600 bg-white/70 rounded-bl opacity-0 group-hover:opacity-100 hover:bg-blue-100"
+              >
+                🔍
+              </button>
+            )}
+          </td>
+        );
+      })}
+    </tr>
   );
 }
 

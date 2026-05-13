@@ -6,9 +6,16 @@ import { enumerateMonths, formatJpMonth } from "@/lib/shikin-guri-months";
 import {
   importCashflowCsv,
   importAccountsCsv,
+  importMeisaiCsv,
 } from "@/lib/shikin-guri-csv";
 
-export type PreviewMode = "cashflow" | "accounts";
+export type PreviewMode = "cashflow" | "accounts" | "meisai";
+
+const PREVIEW_TITLES: Record<PreviewMode, string> = {
+  cashflow: "資金繰り表 CSV取込プレビュー",
+  accounts: "口座残高 CSV取込プレビュー",
+  meisai: "明細表 CSV取込プレビュー",
+};
 
 interface Props {
   csvText: string;
@@ -20,6 +27,7 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
   const period = useShikinGuriStore((s) => s.period);
   const importCashflow = useShikinGuriStore((s) => s.importCashflowCsv);
   const importAccounts = useShikinGuriStore((s) => s.importAccountsCsv);
+  const importMeisai = useShikinGuriStore((s) => s.importMeisaiCsv);
 
   const [accountsMode, setAccountsMode] = useState<"replace" | "merge" | "append">(
     "replace"
@@ -32,6 +40,7 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
 
   const parsed = useMemo(() => {
     if (mode === "cashflow") { return { kind: "cashflow" as const, result: importCashflowCsv(csvText) }; }
+    if (mode === "meisai") { return { kind: "meisai" as const, result: importMeisaiCsv(csvText) }; }
     return { kind: "accounts" as const, result: importAccountsCsv(csvText) };
   }, [csvText, mode]);
 
@@ -53,6 +62,8 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
         { ...parsed.result, cellsBySubject: filtered },
         { applyOpeningBalance: parsed.result.openingBalanceCandidate !== null }
       );
+    } else if (parsed.kind === "meisai") {
+      importMeisai(parsed.result);
     } else {
       const filteredAccounts = parsed.result.accounts.map((a) => {
         const inBal: Record<string, number> = {};
@@ -71,7 +82,7 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col">
         <div className="px-6 py-3 border-b flex items-center justify-between">
           <h3 className="text-lg font-semibold">
-            {mode === "cashflow" ? "資金繰り表 CSV取込プレビュー" : "口座残高 CSV取込プレビュー"}
+            {PREVIEW_TITLES[mode]}
           </h3>
           <button
             type="button"
@@ -84,39 +95,70 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
         </div>
 
         <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 border rounded p-3">
-              <div className="text-gray-600 text-xs">取り込み対象月数</div>
-              <div className="text-xl font-semibold">
-                {inPeriodMonths.length}
-                <span className="text-sm font-normal text-gray-500"> / {parsed.result.months.length}</span>
-              </div>
-              {outOfPeriodMonths.length > 0 && (
-                <div className="text-xs text-amber-700 mt-1">
-                  期間外で無視: {outOfPeriodMonths.map(formatJpMonth).join(", ")}
-                </div>
-              )}
-            </div>
-            {parsed.kind === "cashflow" ? (
+          {parsed.kind === "meisai" ? (
+            <div className="grid grid-cols-3 gap-3">
               <div className="bg-gray-50 border rounded p-3">
-                <div className="text-gray-600 text-xs">マッチした科目数</div>
+                <div className="text-gray-600 text-xs">取込予定行数</div>
+                <div className="text-xl font-semibold">{parsed.result.rows.length}</div>
+                <div className="text-xs text-gray-500 mt-1">（全月ゼロの行は除外済）</div>
+              </div>
+              <div className="bg-gray-50 border rounded p-3">
+                <div className="text-gray-600 text-xs">ユニーク科目数</div>
                 <div className="text-xl font-semibold">
-                  {Object.keys(parsed.result.cellsBySubject).length}
+                  {new Set(parsed.result.rows.map((r) => r.subjectId)).size}
                 </div>
                 {parsed.result.unknownLabels.length > 0 && (
                   <div className="text-xs text-amber-700 mt-1">
-                    未マッチ: {parsed.result.unknownLabels.slice(0, 5).join(", ")}
-                    {parsed.result.unknownLabels.length > 5 && " ..."}
+                    未マッチ: {parsed.result.unknownLabels.slice(0, 3).join(", ")}
+                    {parsed.result.unknownLabels.length > 3 && " ..."}
                   </div>
                 )}
               </div>
-            ) : (
               <div className="bg-gray-50 border rounded p-3">
-                <div className="text-gray-600 text-xs">読み取った口座数</div>
-                <div className="text-xl font-semibold">{parsed.result.accounts.length}</div>
+                <div className="text-gray-600 text-xs">月数</div>
+                <div className="text-xl font-semibold">{parsed.result.months.length}</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {parsed.result.months.length > 0
+                    ? `${formatJpMonth(parsed.result.months[0])} 〜 ${formatJpMonth(parsed.result.months[parsed.result.months.length - 1])}`
+                    : ""}
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 border rounded p-3">
+                <div className="text-gray-600 text-xs">取り込み対象月数</div>
+                <div className="text-xl font-semibold">
+                  {inPeriodMonths.length}
+                  <span className="text-sm font-normal text-gray-500"> / {parsed.result.months.length}</span>
+                </div>
+                {outOfPeriodMonths.length > 0 && (
+                  <div className="text-xs text-amber-700 mt-1">
+                    期間外で無視: {outOfPeriodMonths.map(formatJpMonth).join(", ")}
+                  </div>
+                )}
+              </div>
+              {parsed.kind === "cashflow" ? (
+                <div className="bg-gray-50 border rounded p-3">
+                  <div className="text-gray-600 text-xs">マッチした科目数</div>
+                  <div className="text-xl font-semibold">
+                    {Object.keys(parsed.result.cellsBySubject).length}
+                  </div>
+                  {parsed.result.unknownLabels.length > 0 && (
+                    <div className="text-xs text-amber-700 mt-1">
+                      未マッチ: {parsed.result.unknownLabels.slice(0, 5).join(", ")}
+                      {parsed.result.unknownLabels.length > 5 && " ..."}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-50 border rounded p-3">
+                  <div className="text-gray-600 text-xs">読み取った口座数</div>
+                  <div className="text-xl font-semibold">{parsed.result.accounts.length}</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {parsed.kind === "cashflow" && parsed.result.openingBalanceCandidate !== null && (
             <div className="border border-blue-300 bg-blue-50 rounded p-3">
@@ -169,6 +211,25 @@ export function CsvPreviewDialog({ csvText, mode, onClose }: Props) {
             <details className="text-xs text-gray-600">
               <summary className="cursor-pointer">
                 未マッチ行 ({parsed.result.unknownLabels.length}件)
+              </summary>
+              <ul className="list-disc pl-5 mt-1">
+                {parsed.result.unknownLabels.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {parsed.kind === "meisai" && (
+            <div className="border border-amber-200 bg-amber-50 rounded p-3 text-xs text-amber-800">
+              取込を実行すると既存の明細データは全て置き換わります。
+            </div>
+          )}
+
+          {parsed.kind === "meisai" && parsed.result.unknownLabels.length > 0 && (
+            <details className="text-xs text-gray-600">
+              <summary className="cursor-pointer">
+                未マッチ科目 ({parsed.result.unknownLabels.length}件)
               </summary>
               <ul className="list-disc pl-5 mt-1">
                 {parsed.result.unknownLabels.map((l, i) => (

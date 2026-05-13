@@ -3,14 +3,18 @@ import { persist } from "zustand/middleware";
 import type {
   AccountRow,
   CashflowMatrix,
+  CopyColumnOptions,
+  MeisaiRow,
   MonthKey,
-  PastAverageOptions,
   PeriodConfig,
   ShikinGuriExportData,
 } from "@/types/shikin-guri";
 import { currentMonthKey, addMonths } from "@/lib/shikin-guri-months";
-import { pastAverage } from "@/lib/shikin-guri-calc";
-import type { CashflowCsvImportResult, AccountCsvImportResult } from "@/lib/shikin-guri-csv";
+import type {
+  CashflowCsvImportResult,
+  AccountCsvImportResult,
+  MeisaiCsvImportResult,
+} from "@/lib/shikin-guri-csv";
 
 export const PERIOD_LENGTH_MONTHS = 36;
 
@@ -32,6 +36,7 @@ interface ShikinGuriState {
   activeTab: ShikinGuriTab;
   cashflow: CashflowMatrix;
   accounts: AccountRow[];
+  meisai: MeisaiRow[];
 
   setPeriod: (partial: Partial<PeriodConfig>) => void;
   setActiveTab: (tab: ShikinGuriTab) => void;
@@ -55,7 +60,10 @@ interface ShikinGuriState {
     mode: "replace" | "merge" | "append"
   ) => void;
 
-  applyPastAverage: (options: PastAverageOptions) => void;
+  /** 明細表CSV取込: 既存の明細データを全て置き換える */
+  importMeisaiCsv: (result: MeisaiCsvImportResult) => void;
+
+  applyCopyColumn: (options: CopyColumnOptions) => void;
 
   loadFromJson: (data: ShikinGuriExportData) => void;
   resetAll: () => void;
@@ -76,6 +84,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       activeTab: "cashflow",
       cashflow: defaultCashflow(),
       accounts: defaultAccounts(),
+      meisai: [],
 
       setPeriod: (partial) =>
         set((state) => ({ period: { ...state.period, ...partial } })),
@@ -183,23 +192,22 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           return { accounts: updated };
         }),
 
-      applyPastAverage: (options) =>
+      importMeisaiCsv: (result) =>
+        set(() => ({ meisai: result.rows })),
+
+      applyCopyColumn: (options) =>
         set((state) => {
           const newCells = { ...state.cashflow.cells };
           for (const subjectId of options.subjectIds) {
             const prev = newCells[subjectId] ?? {};
+            const sourceValue = prev[options.sourceMonth] ?? 0;
             const nextRow = { ...prev };
             for (const month of options.targetMonths) {
               const existing = prev[month];
               if (!options.overwriteExisting && existing !== undefined && existing !== 0) {
                 continue;
               }
-              nextRow[month] = pastAverage(
-                state.cashflow,
-                subjectId,
-                month,
-                options.windowMonths
-              );
+              nextRow[month] = sourceValue;
             }
             newCells[subjectId] = nextRow;
           }
@@ -223,6 +231,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
                   balances: { ...(a.balances ?? {}) },
                 }))
               : defaultAccounts(),
+          meisai: data.meisai ?? [],
         })),
 
       resetAll: () =>
@@ -231,6 +240,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           activeTab: "cashflow",
           cashflow: defaultCashflow(),
           accounts: defaultAccounts(),
+          meisai: [],
         })),
     }),
     {
@@ -239,6 +249,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         period: state.period,
         cashflow: state.cashflow,
         accounts: state.accounts,
+        meisai: state.meisai,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShikinGuriState>;
@@ -251,6 +262,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
             cells: p.cashflow?.cells ?? current.cashflow.cells,
           },
           accounts: p.accounts ?? current.accounts,
+          meisai: p.meisai ?? current.meisai,
         };
       },
     }
