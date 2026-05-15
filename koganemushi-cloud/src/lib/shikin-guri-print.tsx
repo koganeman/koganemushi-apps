@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { PrintCashflowSheet } from "@/components/shikin-guri/print-cashflow-sheet";
 import { PrintAccountsSheet } from "@/components/shikin-guri/print-accounts-sheet";
 import { PrintBalanceChartSheet } from "@/components/shikin-guri/print-balance-chart-sheet";
+import { PrintKeijouChartSheet } from "@/components/shikin-guri/print-keijou-chart-sheet";
 import type {
   AccountRow,
   CashflowMatrix,
@@ -21,7 +22,7 @@ export function chunkMonths(months: MonthKey[], chunkSize: number): MonthKey[][]
 
 interface RunPrintArgs {
   monthsList: MonthKey[][];
-  renderPage: (months: MonthKey[]) => React.ReactNode;
+  renderPage: (months: MonthKey[], pageIndex: number) => React.ReactNode;
   /** 印刷時の document.title に使うASCII名（Chrome印刷プレビューの文字化け対策） */
   asciiKind: "Cashflow" | "Accounts" | "BalanceChart";
 }
@@ -48,7 +49,7 @@ async function runPrint({ monthsList, renderPage, asciiKind }: RunPrintArgs): Pr
     pages.forEach((page, i) => {
       const root = createRoot(page);
       roots.push(root);
-      root.render(renderPage(monthsList[i]));
+      root.render(renderPage(monthsList[i], i));
     });
   });
 
@@ -121,21 +122,27 @@ export function printAccounts(opts: PrintAccountsOptions): Promise<void> {
 export interface PrintBalanceChartOptions {
   months: MonthKey[];
   cashflow: CashflowMatrix;
-  accounts: AccountRow[];
   currentMonth: MonthKey;
 }
 
 export function printBalanceChart(opts: PrintBalanceChartOptions): Promise<void> {
+  // 1ページ目=残高グラフ、2ページ目=経常収支グラフ
   return runPrint({
-    monthsList: [opts.months],
+    monthsList: [opts.months, opts.months],
     asciiKind: "BalanceChart",
-    renderPage: (months) => (
-      <PrintBalanceChartSheet
-        months={months}
-        cashflow={opts.cashflow}
-        accounts={opts.accounts}
-        currentMonth={opts.currentMonth}
-      />
-    ),
+    renderPage: (months, pageIndex) =>
+      pageIndex === 0 ? (
+        <PrintBalanceChartSheet
+          months={months}
+          cashflow={opts.cashflow}
+          currentMonth={opts.currentMonth}
+        />
+      ) : (
+        <PrintKeijouChartSheet
+          months={months}
+          cashflow={opts.cashflow}
+          currentMonth={opts.currentMonth}
+        />
+      ),
   });
 }

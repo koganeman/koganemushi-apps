@@ -1,5 +1,5 @@
 import { formatJpMonth } from "@/lib/shikin-guri-months";
-import { BalanceChart } from "./balance-chart";
+import { KeijouChart } from "./keijou-chart";
 import type {
   CashflowMatrix,
   MonthKey,
@@ -12,11 +12,11 @@ interface Props {
   title?: string;
 }
 
-export function PrintBalanceChartSheet({
+export function PrintKeijouChartSheet({
   months,
   cashflow,
   currentMonth,
-  title = "現預金残高 推移グラフ",
+  title = "経常収支 推移グラフ",
 }: Props) {
   const periodLabel =
     months.length > 0
@@ -30,7 +30,7 @@ export function PrintBalanceChartSheet({
         <span className="shikin-print-meta">（対象期間：{periodLabel}）</span>
       </h2>
       <div className="shikin-print-chart-area">
-        <BalanceChart
+        <KeijouChart
           startMonth={months[0]}
           monthCount={months.length}
           currentMonth={currentMonth}
@@ -41,7 +41,7 @@ export function PrintBalanceChartSheet({
         />
       </div>
       <div className="shikin-print-chart-legend-note">
-        ＊ 青実線=期末現預金残高（実績）／青点線=同（予測）／赤=0円基準線
+        ＊ 紫実線=経常収支（実績）／紫点線=同（予測）／赤=0円基準線
       </div>
     </div>
   );

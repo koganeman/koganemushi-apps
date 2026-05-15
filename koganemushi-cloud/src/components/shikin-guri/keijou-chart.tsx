@@ -23,8 +23,8 @@ import type {
 interface ChartPoint {
   month: MonthKey;
   monthLabel: string;
-  closingActual: number | null;
-  closingForecast: number | null;
+  keijouActual: number | null;
+  keijouForecast: number | null;
 }
 
 interface Props {
@@ -38,7 +38,7 @@ interface Props {
   height?: number;
 }
 
-export function BalanceChart({
+export function KeijouChart({
   startMonth,
   monthCount,
   currentMonth,
@@ -53,16 +53,16 @@ export function BalanceChart({
 
     return months.map((m) => {
       const isForecast = isForecastMonth(m, currentMonth);
-      const closing = derivedC.closing[m] ?? 0;
+      const keijou = derivedC.keijouNet[m] ?? 0;
       // 境界月(=currentMonth)は実績側に値、かつ予測側にも値を入れて線を繋ぐ
       const isBoundary = m === currentMonth;
-      const closingActual = !isForecast ? closing : null;
-      const closingForecast = isForecast || isBoundary ? closing : null;
+      const keijouActual = !isForecast ? keijou : null;
+      const keijouForecast = isForecast || isBoundary ? keijou : null;
       return {
         month: m,
         monthLabel: formatShortJpMonth(m),
-        closingActual,
-        closingForecast,
+        keijouActual,
+        keijouForecast,
       };
     });
   }, [startMonth, monthCount, currentMonth, cashflow]);
@@ -96,9 +96,9 @@ export function BalanceChart({
       <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1} />
       <Line
         type="monotone"
-        dataKey="closingActual"
-        name="期末残高（実績）"
-        stroke="#1d4ed8"
+        dataKey="keijouActual"
+        name="経常収支（実績）"
+        stroke="#7c3aed"
         strokeWidth={2.5}
         dot={{ r: 2.5 }}
         connectNulls={false}
@@ -106,9 +106,9 @@ export function BalanceChart({
       />
       <Line
         type="monotone"
-        dataKey="closingForecast"
-        name="期末残高（予測）"
-        stroke="#1d4ed8"
+        dataKey="keijouForecast"
+        name="経常収支（予測）"
+        stroke="#7c3aed"
         strokeWidth={2.5}
         strokeDasharray="6 4"
         dot={{ r: 2.5 }}
@@ -134,9 +134,9 @@ export function BalanceChart({
       <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1} />
       <Line
         type="monotone"
-        dataKey="closingActual"
-        name="期末残高（実績）"
-        stroke="#1d4ed8"
+        dataKey="keijouActual"
+        name="経常収支（実績）"
+        stroke="#7c3aed"
         strokeWidth={2.5}
         dot={{ r: 2.5 }}
         connectNulls={false}
@@ -144,9 +144,9 @@ export function BalanceChart({
       />
       <Line
         type="monotone"
-        dataKey="closingForecast"
-        name="期末残高（予測）"
-        stroke="#1d4ed8"
+        dataKey="keijouForecast"
+        name="経常収支（予測）"
+        stroke="#7c3aed"
         strokeWidth={2.5}
         strokeDasharray="6 4"
         dot={{ r: 2.5 }}

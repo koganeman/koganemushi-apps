@@ -12,6 +12,7 @@ import { ConsistencyBanner } from "@/components/shikin-guri/consistency-banner";
 import { CashflowTable } from "@/components/shikin-guri/cashflow-table";
 import { AccountsTable } from "@/components/shikin-guri/accounts-table";
 import { BalanceChartView } from "@/components/shikin-guri/balance-chart-view";
+import { KeijouChartView } from "@/components/shikin-guri/keijou-chart-view";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
@@ -67,7 +68,6 @@ export default function ShikinGuriPage() {
       void printBalanceChart({
         months: all,
         cashflow: state.cashflow,
-        accounts: state.accounts,
         currentMonth: state.period.currentMonth,
       });
       return;
@@ -220,7 +220,12 @@ export default function ShikinGuriPage() {
       <main>
         {activeTab === "cashflow" && <CashflowTable />}
         {activeTab === "accounts" && <AccountsTable />}
-        {activeTab === "chart" && <BalanceChartView />}
+        {activeTab === "chart" && (
+          <>
+            <BalanceChartView />
+            <KeijouChartView />
+          </>
+        )}
       </main>
 
       {showMonthPicker && (

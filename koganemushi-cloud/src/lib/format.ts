@@ -16,6 +16,20 @@ export function parseYen(value: string): number {
 }
 
 /**
+ * グラフY軸用フォーマット（億／万円単位に丸め）
+ */
+export function formatYenAxis(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 100_000_000) {
+    return `${(value / 100_000_000).toFixed(1)}億`;
+  }
+  if (abs >= 10_000) {
+    return `${Math.round(value / 10_000).toLocaleString("ja-JP")}万`;
+  }
+  return value.toLocaleString("ja-JP");
+}
+
+/**
  * パーセント表示用フォーマット
  */
 export function formatPercent(value: number): string {
