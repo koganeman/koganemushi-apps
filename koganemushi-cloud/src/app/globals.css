@@ -183,6 +183,120 @@
   }
 }
 
+/* 資金繰り表 印刷用：12ヶ月 × 多科目を A4 横で収める
+ * 既存 print-multi-page との specificity 競合を避けるため、
+ * shikin-print-container 単独で完結するスタイルにする。 */
+@media print {
+  #print-container.shikin-print-container {
+    display: block !important;
+    position: static;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  #print-container.shikin-print-container .print-page {
+    page-break-after: always;
+    page-break-inside: auto;
+    margin: 0;
+    padding: 0;
+  }
+  #print-container.shikin-print-container .print-page:last-child {
+    page-break-after: avoid;
+  }
+
+  /* 色出力を強制（specificity 上げて確実に） */
+  .shikin-print-sheet,
+  .shikin-print-sheet * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 縦圧縮（既存 print-multi-page のフォント設定より specificity を高く） */
+  #print-container.shikin-print-container .shikin-print-sheet {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 8px;
+    line-height: 1.15;
+    color: #000;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet h2 {
+    font-size: 12px;
+    font-weight: 700;
+    margin: 0 0 1px 0;
+    padding: 0;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet .shikin-print-meta {
+    font-size: 9px;
+    font-weight: 400;
+    color: #333;
+    margin: 0 0 0 4px;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  /* 罫線：pt 単位で印刷時に確実に出す（黒い細線） */
+  #print-container.shikin-print-container .shikin-print-sheet th,
+  #print-container.shikin-print-container .shikin-print-sheet td {
+    border: 0.5pt solid #333;
+    padding: 0.5px 3px;
+    overflow: hidden;
+    word-break: keep-all;
+    vertical-align: middle;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet col.label {
+    width: 110px;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet th.label,
+  #print-container.shikin-print-container .shikin-print-sheet td.label {
+    text-align: left;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet td.num,
+  #print-container.shikin-print-container .shikin-print-sheet th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 残高グラフ印刷シート */
+  .shikin-print-sheet.shikin-print-chart .shikin-print-chart-area {
+    margin-top: 4px;
+    /* recharts の SVG は親要素の overflow を超えうるため明示 */
+    overflow: hidden;
+  }
+  .shikin-print-sheet.shikin-print-chart .shikin-print-chart-legend-note {
+    margin-top: 4px;
+    font-size: 9px;
+    color: #333;
+  }
+  /* recharts の SVG 要素は色出力強制対象 */
+  .shikin-print-sheet.shikin-print-chart svg,
+  .shikin-print-sheet.shikin-print-chart svg * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 色分け：濃いめにして印刷で識別しやすく */
+  .shikin-print-sheet .actual-bg {
+    background-color: #d6e4f5 !important;
+  }
+  .shikin-print-sheet .forecast-bg {
+    background-color: #ffe2a8 !important;
+  }
+  .shikin-print-sheet .section-bg {
+    background-color: #cfcfcf !important;
+    font-weight: 700;
+  }
+  .shikin-print-sheet .total-bg {
+    background-color: #fff080 !important;
+    font-weight: 700;
+    border-top: 1pt solid #000 !important;
+    border-bottom: 1pt solid #000 !important;
+  }
+}
+
 /* ブロックパズル印刷用スタイル：画面表示要素をそのまま印刷に流用 */
 .bp-print-only {
   display: none;

@@ -1,19 +1,30 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   useShikinGuriStore,
+  PERIOD_LENGTH_MONTHS,
   type ShikinGuriTab,
 } from "@/stores/shikin-guri-store";
-import type { ShikinGuriExportData } from "@/types/shikin-guri";
+import type { MonthKey, ShikinGuriExportData } from "@/types/shikin-guri";
 import { PeriodConfigBar } from "@/components/shikin-guri/period-config-bar";
 import { ConsistencyBanner } from "@/components/shikin-guri/consistency-banner";
 import { CashflowTable } from "@/components/shikin-guri/cashflow-table";
 import { AccountsTable } from "@/components/shikin-guri/accounts-table";
+import { BalanceChartView } from "@/components/shikin-guri/balance-chart-view";
+import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
+import { enumerateMonths } from "@/lib/shikin-guri-months";
+import {
+  chunkMonths,
+  printAccounts,
+  printBalanceChart,
+  printCashflow,
+} from "@/lib/shikin-guri-print";
 
 const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
   { id: "cashflow", label: "資金繰り表" },
   { id: "accounts", label: "口座残高明細表" },
+  { id: "chart", label: "残高グラフ" },
 ];
 
 function timestampForFilename(): string {
@@ -29,6 +40,45 @@ export default function ShikinGuriPage() {
   const resetAll = useShikinGuriStore((s) => s.resetAll);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+  const runPrint = (monthsList: MonthKey[][]) => {
+    const state = useShikinGuriStore.getState();
+    if (state.activeTab === "cashflow") {
+      void printCashflow({
+        monthsList,
+        cashflow: state.cashflow,
+        currentMonth: state.period.currentMonth,
+      });
+    } else if (state.activeTab === "accounts") {
+      void printAccounts({
+        monthsList,
+        accounts: state.accounts,
+        cashflow: state.cashflow,
+        currentMonth: state.period.currentMonth,
+      });
+    }
+  };
+
+  const handlePrintAll = () => {
+    const state = useShikinGuriStore.getState();
+    const all = enumerateMonths(state.period.startMonth, PERIOD_LENGTH_MONTHS);
+    if (state.activeTab === "chart") {
+      void printBalanceChart({
+        months: all,
+        cashflow: state.cashflow,
+        accounts: state.accounts,
+        currentMonth: state.period.currentMonth,
+      });
+      return;
+    }
+    runPrint(chunkMonths(all, 12));
+  };
+
+  const handlePrint12Confirm = (selectedStart: MonthKey) => {
+    setShowMonthPicker(false);
+    runPrint([enumerateMonths(selectedStart, 12)]);
+  };
 
   const handleExport = () => {
     const state = useShikinGuriStore.getState();
@@ -125,6 +175,29 @@ export default function ShikinGuriPage() {
             JSON エクスポート
           </button>
           <button
+            onClick={handlePrintAll}
+            className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors"
+            title={
+              activeTab === "chart"
+                ? "残高グラフをA4横1ページで印刷／PDF出力"
+                : `${activeTab === "cashflow" ? "資金繰り表" : "口座残高明細表"}を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力`
+            }
+          >
+            {activeTab === "chart" ? "グラフ印刷" : "全期間印刷 (3ページ)"}
+          </button>
+          <button
+            onClick={() => setShowMonthPicker(true)}
+            disabled={activeTab === "chart"}
+            className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title={
+              activeTab === "chart"
+                ? "残高グラフは全期間印刷のみ対応しています"
+                : "開始月を選んで12ヶ月分だけ印刷／PDF出力"
+            }
+          >
+            12ヶ月分だけ印刷…
+          </button>
+          <button
             onClick={handleReset}
             className="text-xs border border-gray-400 text-gray-600 rounded px-3 py-1 hover:bg-gray-100 transition-colors"
             title="入力をすべてリセット"
@@ -147,7 +220,15 @@ export default function ShikinGuriPage() {
       <main>
         {activeTab === "cashflow" && <CashflowTable />}
         {activeTab === "accounts" && <AccountsTable />}
+        {activeTab === "chart" && <BalanceChartView />}
       </main>
+
+      {showMonthPicker && (
+        <PrintMonthPickerDialog
+          onCancel={() => setShowMonthPicker(false)}
+          onConfirm={handlePrint12Confirm}
+        />
+      )}
     </div>
   );
 }

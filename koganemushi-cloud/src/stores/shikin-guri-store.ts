@@ -18,7 +18,7 @@ import type {
 
 export const PERIOD_LENGTH_MONTHS = 36;
 
-export type ShikinGuriTab = "cashflow" | "accounts";
+export type ShikinGuriTab = "cashflow" | "accounts" | "chart";
 
 function defaultPeriod(): PeriodConfig {
   const current = currentMonthKey();
