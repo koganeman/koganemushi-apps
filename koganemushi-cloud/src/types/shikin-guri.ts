@@ -44,6 +44,10 @@ export interface ShikinGuriExportData {
   cashflow?: CashflowMatrix;
   accounts?: AccountRow[];
   meisai?: MeisaiRow[];
+  /** 予実対比用に保持する予算（予測）スナップショット */
+  budget?: CashflowMatrix | null;
+  /** 予算スナップショットを取得した日時（ISO文字列） */
+  budgetSnapshotAt?: string | null;
 }
 
 /** 列コピー オプション */

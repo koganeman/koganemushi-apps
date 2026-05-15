@@ -6,6 +6,7 @@ import { PrintCashflowSheet } from "@/components/shikin-guri/print-cashflow-shee
 import { PrintAccountsSheet } from "@/components/shikin-guri/print-accounts-sheet";
 import { PrintBalanceChartSheet } from "@/components/shikin-guri/print-balance-chart-sheet";
 import { PrintKeijouChartSheet } from "@/components/shikin-guri/print-keijou-chart-sheet";
+import { PrintBudgetActualSheet } from "@/components/shikin-guri/print-budget-actual-sheet";
 import type {
   AccountRow,
   CashflowMatrix,
@@ -24,7 +25,7 @@ interface RunPrintArgs {
   monthsList: MonthKey[][];
   renderPage: (months: MonthKey[], pageIndex: number) => React.ReactNode;
   /** 印刷時の document.title に使うASCII名（Chrome印刷プレビューの文字化け対策） */
-  asciiKind: "Cashflow" | "Accounts" | "BalanceChart";
+  asciiKind: "Cashflow" | "Accounts" | "BalanceChart" | "BudgetActual";
 }
 
 async function runPrint({ monthsList, renderPage, asciiKind }: RunPrintArgs): Promise<void> {
@@ -112,6 +113,28 @@ export function printAccounts(opts: PrintAccountsOptions): Promise<void> {
       <PrintAccountsSheet
         months={months}
         accounts={opts.accounts}
+        cashflow={opts.cashflow}
+        currentMonth={opts.currentMonth}
+      />
+    ),
+  });
+}
+
+export interface PrintBudgetActualOptions {
+  monthsList: MonthKey[][];
+  budget: CashflowMatrix;
+  cashflow: CashflowMatrix;
+  currentMonth: MonthKey;
+}
+
+export function printBudgetActual(opts: PrintBudgetActualOptions): Promise<void> {
+  return runPrint({
+    monthsList: opts.monthsList,
+    asciiKind: "BudgetActual",
+    renderPage: (months) => (
+      <PrintBudgetActualSheet
+        months={months}
+        budget={opts.budget}
         cashflow={opts.cashflow}
         currentMonth={opts.currentMonth}
       />

@@ -18,7 +18,16 @@ import type {
 
 export const PERIOD_LENGTH_MONTHS = 36;
 
-export type ShikinGuriTab = "cashflow" | "accounts" | "chart";
+export type ShikinGuriTab = "cashflow" | "accounts" | "chart" | "budget";
+
+/** CashflowMatrix を深くコピー（cells はネストするので行ごとに複製） */
+function cloneCashflow(src: CashflowMatrix): CashflowMatrix {
+  const cells: Record<string, Record<MonthKey, number>> = {};
+  for (const [subjectId, row] of Object.entries(src.cells)) {
+    cells[subjectId] = { ...row };
+  }
+  return { openingBalance: src.openingBalance, cells };
+}
 
 function defaultPeriod(): PeriodConfig {
   const current = currentMonthKey();
@@ -37,9 +46,18 @@ interface ShikinGuriState {
   cashflow: CashflowMatrix;
   accounts: AccountRow[];
   meisai: MeisaiRow[];
+  /** 予実対比用の予算（予測）スナップショット。未取得は null */
+  budget: CashflowMatrix | null;
+  /** 予算スナップショット取得日時（ISO文字列）。未取得は null */
+  budgetSnapshotAt: string | null;
 
   setPeriod: (partial: Partial<PeriodConfig>) => void;
   setActiveTab: (tab: ShikinGuriTab) => void;
+
+  /** 現在の資金繰り表を予算として保存（予実対比の「予定」） */
+  captureBudgetSnapshot: () => void;
+  /** 予算スナップショットを破棄 */
+  clearBudgetSnapshot: () => void;
 
   setOpeningBalance: (value: number) => void;
   setCashflowCell: (subjectId: string, month: MonthKey, value: number) => void;
@@ -85,11 +103,21 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       cashflow: defaultCashflow(),
       accounts: defaultAccounts(),
       meisai: [],
+      budget: null,
+      budgetSnapshotAt: null,
 
       setPeriod: (partial) =>
         set((state) => ({ period: { ...state.period, ...partial } })),
 
       setActiveTab: (activeTab) => set({ activeTab }),
+
+      captureBudgetSnapshot: () =>
+        set((state) => ({
+          budget: cloneCashflow(state.cashflow),
+          budgetSnapshotAt: new Date().toISOString(),
+        })),
+
+      clearBudgetSnapshot: () => set({ budget: null, budgetSnapshotAt: null }),
 
       setOpeningBalance: (value) =>
         set((state) => ({ cashflow: { ...state.cashflow, openingBalance: value } })),
@@ -232,6 +260,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
                 }))
               : defaultAccounts(),
           meisai: data.meisai ?? [],
+          budget: data.budget ?? null,
+          budgetSnapshotAt: data.budgetSnapshotAt ?? null,
         })),
 
       resetAll: () =>
@@ -241,6 +271,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           cashflow: defaultCashflow(),
           accounts: defaultAccounts(),
           meisai: [],
+          budget: null,
+          budgetSnapshotAt: null,
         })),
     }),
     {
@@ -250,6 +282,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         cashflow: state.cashflow,
         accounts: state.accounts,
         meisai: state.meisai,
+        budget: state.budget,
+        budgetSnapshotAt: state.budgetSnapshotAt,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShikinGuriState>;
@@ -263,6 +297,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           },
           accounts: p.accounts ?? current.accounts,
           meisai: p.meisai ?? current.meisai,
+          budget: p.budget ?? current.budget,
+          budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
         };
       },
     }

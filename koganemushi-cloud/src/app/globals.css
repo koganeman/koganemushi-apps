@@ -260,6 +260,18 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* 予実対比表 印刷シート：各月3列で密になるためフォントを縮小 */
+  #print-container.shikin-print-container .shikin-print-sheet.shikin-print-budget {
+    font-size: 6.5px;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet.shikin-print-budget col.label {
+    width: 84px;
+  }
+  #print-container.shikin-print-container .shikin-print-sheet.shikin-print-budget th,
+  #print-container.shikin-print-container .shikin-print-sheet.shikin-print-budget td {
+    padding: 0.5px 1.5px;
+  }
+
   /* 残高グラフ印刷シート */
   .shikin-print-sheet.shikin-print-chart .shikin-print-chart-area {
     margin-top: 4px;

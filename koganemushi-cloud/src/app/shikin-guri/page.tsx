@@ -13,12 +13,14 @@ import { CashflowTable } from "@/components/shikin-guri/cashflow-table";
 import { AccountsTable } from "@/components/shikin-guri/accounts-table";
 import { BalanceChartView } from "@/components/shikin-guri/balance-chart-view";
 import { KeijouChartView } from "@/components/shikin-guri/keijou-chart-view";
+import { BudgetActualTable } from "@/components/shikin-guri/budget-actual-table";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
   chunkMonths,
   printAccounts,
   printBalanceChart,
+  printBudgetActual,
   printCashflow,
 } from "@/lib/shikin-guri-print";
 
@@ -26,6 +28,7 @@ const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
   { id: "cashflow", label: "資金繰り表" },
   { id: "accounts", label: "口座残高明細表" },
   { id: "chart", label: "残高グラフ" },
+  { id: "budget", label: "予実対比表" },
 ];
 
 function timestampForFilename(): string {
@@ -58,6 +61,18 @@ export default function ShikinGuriPage() {
         cashflow: state.cashflow,
         currentMonth: state.period.currentMonth,
       });
+    } else if (state.activeTab === "budget") {
+      if (!state.budget) {
+        window.alert("先に「予実対比表」タブで予算を確定してください。");
+        return;
+      }
+      // 各月3列で密になるため 6ヶ月／ページに分割
+      void printBudgetActual({
+        monthsList: chunkMonths(monthsList.flat(), 6),
+        budget: state.budget,
+        cashflow: state.cashflow,
+        currentMonth: state.period.currentMonth,
+      });
     }
   };
 
@@ -87,6 +102,9 @@ export default function ShikinGuriPage() {
       period: state.period,
       cashflow: state.cashflow,
       accounts: state.accounts,
+      meisai: state.meisai,
+      budget: state.budget,
+      budgetSnapshotAt: state.budgetSnapshotAt,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -179,11 +197,17 @@ export default function ShikinGuriPage() {
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors"
             title={
               activeTab === "chart"
-                ? "残高グラフをA4横1ページで印刷／PDF出力"
+                ? "残高グラフをA4横2ページで印刷／PDF出力"
+                : activeTab === "budget"
+                ? "予実対比表を全期間（36ヶ月＝6ヶ月×6ページ）で印刷／PDF出力"
                 : `${activeTab === "cashflow" ? "資金繰り表" : "口座残高明細表"}を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力`
             }
           >
-            {activeTab === "chart" ? "グラフ印刷" : "全期間印刷 (3ページ)"}
+            {activeTab === "chart"
+              ? "グラフ印刷"
+              : activeTab === "budget"
+              ? "全期間印刷 (6ページ)"
+              : "全期間印刷 (3ページ)"}
           </button>
           <button
             onClick={() => setShowMonthPicker(true)}
@@ -226,6 +250,7 @@ export default function ShikinGuriPage() {
             <KeijouChartView />
           </>
         )}
+        {activeTab === "budget" && <BudgetActualTable />}
       </main>
 
       {showMonthPicker && (
