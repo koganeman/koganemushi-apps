@@ -38,12 +38,35 @@ export interface MeisaiRow {
   amounts: Record<MonthKey, number>;
 }
 
+/** 資金繰り予測「各科目の試算」用に追加した摘要行 */
+export interface MeisaiForecastRow {
+  /** 安定ID（追加行の識別。values のキーにも使う） */
+  id: string;
+  /** 摘要 */
+  description: string;
+  /** 予測値 */
+  value: number;
+}
+
+/** 明細（全月）ポップアップの予測入力状態 */
+export interface MeisaiForecastState {
+  /**
+   * subjectId -> rowKey -> 予測値。
+   * rowKey は明細行は `m${明細行index}`、追加行はその id。
+   */
+  values: Record<string, Record<string, number>>;
+  /** subjectId -> 明細に存在しない追加行 */
+  addedRows: Record<string, MeisaiForecastRow[]>;
+}
+
 export interface ShikinGuriExportData {
   version: number;
   period?: PeriodConfig;
   cashflow?: CashflowMatrix;
   accounts?: AccountRow[];
   meisai?: MeisaiRow[];
+  /** 明細（全月）の予測入力（各科目の試算） */
+  meisaiForecast?: MeisaiForecastState;
   /** 予実対比用に保持する予算（予測）スナップショット */
   budget?: CashflowMatrix | null;
   /** 予算スナップショットを取得した日時（ISO文字列） */
