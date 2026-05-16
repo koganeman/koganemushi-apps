@@ -13,11 +13,7 @@ import {
 } from "@/lib/shikin-guri-months";
 import { SUBJECT_BY_ID } from "@/lib/shikin-guri-subjects";
 import { formatYen } from "@/lib/format";
-import type {
-  MeisaiForecastRow,
-  MeisaiRow,
-  MonthKey,
-} from "@/types/shikin-guri";
+import type { MeisaiForecastRow, MonthKey } from "@/types/shikin-guri";
 import { EditableYenCell } from "./editable-yen-cell";
 
 /** Zustand セレクタの参照安定用（空フォールバック） */
@@ -30,35 +26,24 @@ interface Props {
   onClose: () => void;
 }
 
-/** amounts のうち最新（月キー昇順で末尾側）の非ゼロ値を返す。無ければ 0 */
-function lastNonZeroAmount(amounts: Record<MonthKey, number>): number {
-  const months = Object.keys(amounts).sort();
-  for (let i = months.length - 1; i >= 0; i--) {
-    const v = amounts[months[i]] ?? 0;
-    if (v !== 0) { return v; }
-  }
-  return 0;
-}
-
-/** 明細行 i の実効予測値（保存値があればそれ、無ければ直近実績） */
+/** 明細行 i の実効予測値（保存値があればそれ、無ければ空欄＝0） */
 function effectiveForecast(
   values: Record<string, number>,
-  rowIndex: number,
-  row: MeisaiRow
+  rowIndex: number
 ): number {
-  return values[`m${rowIndex}`] ?? lastNonZeroAmount(row.amounts);
+  return values[`m${rowIndex}`] ?? 0;
 }
 
 /** 試算合計（明細行の実効値 ＋ 追加行の値） */
 function computeForecastTotal(
-  rows: MeisaiRow[],
+  rowCount: number,
   values: Record<string, number>,
   addedRows: { value: number }[]
 ): number {
   let sum = 0;
-  rows.forEach((r, i) => {
-    sum += effectiveForecast(values, i, r);
-  });
+  for (let i = 0; i < rowCount; i++) {
+    sum += effectiveForecast(values, i);
+  }
   for (const r of addedRows) { sum += r.value; }
   return sum;
 }
@@ -162,7 +147,7 @@ function AddedRows({
   monthColumns: MonthKey[];
 }) {
   const addedRows = useShikinGuriStore(
-    (s) => s.meisaiForecast.addedRows[subjectId] ?? []
+    (s) => s.meisaiForecast.addedRows[subjectId] ?? EMPTY_ADDED
   );
   const updateRow = useShikinGuriStore((s) => s.updateMeisaiForecastRow);
   const removeRow = useShikinGuriStore((s) => s.removeMeisaiForecastRow);
@@ -262,8 +247,8 @@ export function MeisaiPopup({ subjectId, month, onClose }: Props) {
   );
 
   const forecastTotal = useMemo(
-    () => computeForecastTotal(filteredRows, forecastValues, addedRows),
-    [filteredRows, forecastValues, addedRows]
+    () => computeForecastTotal(filteredRows.length, forecastValues, addedRows),
+    [filteredRows.length, forecastValues, addedRows]
   );
 
   const title = month
@@ -338,7 +323,7 @@ export function MeisaiPopup({ subjectId, month, onClose }: Props) {
                     {forecastMode && (
                       <td className="border p-0 bg-blue-50/40">
                         <EditableYenCell
-                          value={effectiveForecast(forecastValues, i, r)}
+                          value={effectiveForecast(forecastValues, i)}
                           onChange={(v) =>
                             setForecastValue(subjectId, `m${i}`, v)
                           }
