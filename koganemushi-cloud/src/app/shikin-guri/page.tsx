@@ -14,6 +14,7 @@ import { AccountsTable } from "@/components/shikin-guri/accounts-table";
 import { BalanceChartView } from "@/components/shikin-guri/balance-chart-view";
 import { KeijouChartView } from "@/components/shikin-guri/keijou-chart-view";
 import { BudgetActualTable } from "@/components/shikin-guri/budget-actual-table";
+import { LedgerImportPanel } from "@/components/shikin-guri/ledger-import-panel";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
@@ -25,11 +26,30 @@ import {
 } from "@/lib/shikin-guri-print";
 
 const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
+  { id: "ledger", label: "実績取込" },
   { id: "cashflow", label: "資金繰り表" },
   { id: "accounts", label: "口座残高明細表" },
   { id: "chart", label: "残高グラフ" },
   { id: "budget", label: "予実対比表" },
 ];
+
+function printAllTitle(tab: ShikinGuriTab): string {
+  if (tab === "chart") {
+    return "残高グラフをA4横2ページで印刷／PDF出力";
+  }
+  if (tab === "budget") {
+    return "予実対比表を全期間（36ヶ月＝6ヶ月×6ページ）で印刷／PDF出力";
+  }
+  const name = tab === "cashflow" ? "資金繰り表" : "口座残高明細表";
+  return `${name}を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力`;
+}
+
+function printAllLabel(tab: ShikinGuriTab): string {
+  if (tab === "chart") {
+    return "グラフ印刷";
+  }
+  return tab === "budget" ? "全期間印刷 (6ページ)" : "全期間印刷 (3ページ)";
+}
 
 function timestampForFilename(): string {
   const d = new Date();
@@ -105,6 +125,7 @@ export default function ShikinGuriPage() {
       meisai: state.meisai,
       budget: state.budget,
       budgetSnapshotAt: state.budgetSnapshotAt,
+      learnedRules: state.learnedRules,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -194,24 +215,15 @@ export default function ShikinGuriPage() {
           </button>
           <button
             onClick={handlePrintAll}
-            className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors"
-            title={
-              activeTab === "chart"
-                ? "残高グラフをA4横2ページで印刷／PDF出力"
-                : activeTab === "budget"
-                ? "予実対比表を全期間（36ヶ月＝6ヶ月×6ページ）で印刷／PDF出力"
-                : `${activeTab === "cashflow" ? "資金繰り表" : "口座残高明細表"}を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力`
-            }
+            disabled={activeTab === "ledger"}
+            className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title={printAllTitle(activeTab)}
           >
-            {activeTab === "chart"
-              ? "グラフ印刷"
-              : activeTab === "budget"
-              ? "全期間印刷 (6ページ)"
-              : "全期間印刷 (3ページ)"}
+            {printAllLabel(activeTab)}
           </button>
           <button
             onClick={() => setShowMonthPicker(true)}
-            disabled={activeTab === "chart"}
+            disabled={activeTab === "chart" || activeTab === "ledger"}
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={
               activeTab === "chart"
@@ -251,6 +263,7 @@ export default function ShikinGuriPage() {
           </>
         )}
         {activeTab === "budget" && <BudgetActualTable />}
+        {activeTab === "ledger" && <LedgerImportPanel />}
       </main>
 
       {showMonthPicker && (

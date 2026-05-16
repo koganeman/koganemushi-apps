@@ -34,7 +34,16 @@
       "Bash(claude mcp:*)",
       "Bash(npx freee-mcp:*)",
       "Bash(npm search:*)",
-      "WebFetch(domain:biz.moneyforward.com)"
+      "WebFetch(domain:biz.moneyforward.com)",
+      "Bash(git push origin main)",
+      "Bash(git push origin main:*)"
     ]
+  },
+   "autoMode": {
+      "allow": [
+        "$defaults",
+        "Direct pushes to main in this repository are explicitly authorized — single-developer project."
+      ]
+    }
   }
-}
+

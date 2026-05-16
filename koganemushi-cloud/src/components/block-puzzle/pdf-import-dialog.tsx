@@ -26,6 +26,8 @@ interface Props {
   extracted: ExtractedCombined;
   /** "overwrite": 列に上書き（既定） / "shift": 過去期を1つ右にずらして最新期に挿入 */
   mode?: "overwrite" | "shift";
+  /** OCR経由で取り込んだ場合 true（警告バナーを表示） */
+  viaOcr?: boolean;
   onCancel: () => void;
   onApply: (args: { plInput: PLPeriodInput; bsInput: BSPeriodInput }) => void;
 }
@@ -60,7 +62,7 @@ const BS_RAW_ROWS: { label: string; key: keyof ExtractedBSRawValues }[] = [
   { label: "純資産合計", key: "netAssetsTotal" },
 ];
 
-export function PdfImportDialog({ open, extracted, mode = "overwrite", onCancel, onApply }: Props) {
+export function PdfImportDialog({ open, extracted, mode = "overwrite", viaOcr = false, onCancel, onApply }: Props) {
   const isShiftMode = mode === "shift";
   const plMapped = useMemo(() => mapExtractedToInput(extracted.pl), [extracted.pl]);
   const bsMapped = useMemo(() => mapExtractedBSToInput(extracted.bs), [extracted.bs]);
@@ -89,7 +91,7 @@ export function PdfImportDialog({ open, extracted, mode = "overwrite", onCancel,
         <div className="space-y-4 text-sm">
           <p className="text-xs text-gray-600">{descriptionFor(mode)}</p>
 
-          {isShiftMode && <ShiftModeBanner />}
+          <ImportBanners viaOcr={viaOcr} isShiftMode={isShiftMode} />
 
           <label className="flex items-center gap-2">
             <span className="text-gray-700 w-20">期末日</span>
@@ -220,6 +222,25 @@ function ShiftModeBanner() {
       ⚠ シフト挿入モード: 適用すると <strong>最古期(第5期)のデータが失われます</strong>。
       事前に「エクスポート」でJSON保存することを推奨します。
     </div>
+  );
+}
+
+function OcrWarningBanner() {
+  return (
+    <div className="bg-yellow-50 border border-yellow-300 rounded p-2 text-xs text-yellow-900">
+      ⚠ <strong>OCR取込結果</strong>：文字認識で読み取った値のため、誤認識の可能性があります。
+      適用前に必ず数値を PDF と突き合わせて確認してください。
+      （特に金額の桁・△マイナス記号・「0」と「O」の区別など）
+    </div>
+  );
+}
+
+function ImportBanners({ viaOcr, isShiftMode }: { viaOcr: boolean; isShiftMode: boolean }) {
+  return (
+    <>
+      {viaOcr && <OcrWarningBanner />}
+      {isShiftMode && <ShiftModeBanner />}
+    </>
   );
 }
 

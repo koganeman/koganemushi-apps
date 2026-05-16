@@ -15,10 +15,37 @@ import type {
   AccountCsvImportResult,
   MeisaiCsvImportResult,
 } from "@/lib/shikin-guri-csv";
+import type {
+  CpDescAssignments,
+  DescriptionOverrides,
+  LearnedRules,
+  OffsetKeys,
+  ParsedLedger,
+  SubjectMappingEntry,
+} from "@/types/general-ledger";
 
 export const PERIOD_LENGTH_MONTHS = 36;
 
-export type ShikinGuriTab = "cashflow" | "accounts" | "chart" | "budget";
+/**
+ * 実績取込（総勘定元帳CSV）の作業状態。
+ * タブ切替で消えないようストアに保持（localStorage には永続化しない＝再読込では消える）。
+ */
+export interface LedgerWorkState {
+  parsed: ParsedLedger;
+  mapping: SubjectMappingEntry[];
+  overrides: DescriptionOverrides;
+  cpDescAssignments: CpDescAssignments;
+  /** 消込確定キー（科目＋金額） */
+  offsetKeys: OffsetKeys;
+  accountsCsv: AccountCsvImportResult | null;
+}
+
+export type ShikinGuriTab =
+  | "cashflow"
+  | "accounts"
+  | "chart"
+  | "budget"
+  | "ledger";
 
 /** CashflowMatrix を深くコピー（cells はネストするので行ごとに複製） */
 function cloneCashflow(src: CashflowMatrix): CashflowMatrix {
@@ -51,8 +78,35 @@ interface ShikinGuriState {
   /** 予算スナップショット取得日時（ISO文字列）。未取得は null */
   budgetSnapshotAt: string | null;
 
+  /** 実績取込の作業状態。未読込は null（タブ切替で保持） */
+  ledgerWork: LedgerWorkState | null;
+  /** 実績取込画面のロック（ON時は新規読込・クリアを抑止） */
+  ledgerLocked: boolean;
+  /** 科目割当の学習ルール（localStorage永続・次回取込で自動適用） */
+  learnedRules: LearnedRules;
+
   setPeriod: (partial: Partial<PeriodConfig>) => void;
   setActiveTab: (tab: ShikinGuriTab) => void;
+
+  /** 実績取込の作業状態を丸ごと設定（null でクリア） */
+  setLedgerWork: (work: LedgerWorkState | null) => void;
+  /** 実績取込の作業状態を部分更新（未読込時は無視） */
+  patchLedgerWork: (patch: Partial<LedgerWorkState>) => void;
+  /** 実績取込画面のロック切替 */
+  setLedgerLocked: (locked: boolean) => void;
+
+  /** 相手勘定科目→科目 を学習（null=除外） */
+  learnCp: (counterpartyAccount: string, subjectId: string | null) => void;
+  /** cpDescKey→科目 を学習（null=除外） */
+  learnCpDesc: (key: string, subjectId: string | null) => void;
+  /** 相手勘定科目の学習を削除 */
+  unlearnCp: (counterpartyAccount: string) => void;
+  /** cpDescKey の学習を削除 */
+  unlearnCpDesc: (key: string) => void;
+  /** 学習ルールを全削除 */
+  clearLearnedRules: () => void;
+  /** 学習ルールを丸ごと設定（JSON取込用） */
+  setLearnedRules: (rules: LearnedRules) => void;
 
   /** 現在の資金繰り表を予算として保存（予実対比の「予定」） */
   captureBudgetSnapshot: () => void;
@@ -87,6 +141,10 @@ interface ShikinGuriState {
   resetAll: () => void;
 }
 
+function defaultLearnedRules(): LearnedRules {
+  return { version: 1, cp: {}, cpDesc: {} };
+}
+
 function defaultCashflow(): CashflowMatrix {
   return { openingBalance: 0, cells: {} };
 }
@@ -105,11 +163,63 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       meisai: [],
       budget: null,
       budgetSnapshotAt: null,
+      ledgerWork: null,
+      ledgerLocked: false,
+      learnedRules: defaultLearnedRules(),
 
       setPeriod: (partial) =>
         set((state) => ({ period: { ...state.period, ...partial } })),
 
       setActiveTab: (activeTab) => set({ activeTab }),
+
+      setLedgerWork: (ledgerWork) => set({ ledgerWork }),
+
+      patchLedgerWork: (patch) =>
+        set((state) =>
+          state.ledgerWork
+            ? { ledgerWork: { ...state.ledgerWork, ...patch } }
+            : {}
+        ),
+
+      setLedgerLocked: (ledgerLocked) => set({ ledgerLocked }),
+
+      learnCp: (cp, subjectId) =>
+        set((state) => ({
+          learnedRules: {
+            ...state.learnedRules,
+            cp: { ...state.learnedRules.cp, [cp]: subjectId },
+          },
+        })),
+
+      learnCpDesc: (key, subjectId) =>
+        set((state) => ({
+          learnedRules: {
+            ...state.learnedRules,
+            cpDesc: { ...state.learnedRules.cpDesc, [key]: subjectId },
+          },
+        })),
+
+      unlearnCp: (cp) =>
+        set((state) => {
+          const next = { ...state.learnedRules.cp };
+          delete next[cp];
+          return {
+            learnedRules: { ...state.learnedRules, cp: next },
+          };
+        }),
+
+      unlearnCpDesc: (key) =>
+        set((state) => {
+          const next = { ...state.learnedRules.cpDesc };
+          delete next[key];
+          return {
+            learnedRules: { ...state.learnedRules, cpDesc: next },
+          };
+        }),
+
+      clearLearnedRules: () => set({ learnedRules: defaultLearnedRules() }),
+
+      setLearnedRules: (learnedRules) => set({ learnedRules }),
 
       captureBudgetSnapshot: () =>
         set((state) => ({
@@ -262,10 +372,11 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           meisai: data.meisai ?? [],
           budget: data.budget ?? null,
           budgetSnapshotAt: data.budgetSnapshotAt ?? null,
+          learnedRules: data.learnedRules ?? defaultLearnedRules(),
         })),
 
       resetAll: () =>
-        set(() => ({
+        set((state) => ({
           period: defaultPeriod(),
           activeTab: "cashflow",
           cashflow: defaultCashflow(),
@@ -273,6 +384,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           meisai: [],
           budget: null,
           budgetSnapshotAt: null,
+          // ロック中は実績取込の作業状態を保持
+          ledgerWork: state.ledgerLocked ? state.ledgerWork : null,
+          ledgerLocked: state.ledgerLocked,
         })),
     }),
     {
@@ -284,6 +398,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         meisai: state.meisai,
         budget: state.budget,
         budgetSnapshotAt: state.budgetSnapshotAt,
+        learnedRules: state.learnedRules,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShikinGuriState>;
@@ -299,6 +414,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           meisai: p.meisai ?? current.meisai,
           budget: p.budget ?? current.budget,
           budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
+          learnedRules: p.learnedRules ?? current.learnedRules,
         };
       },
     }

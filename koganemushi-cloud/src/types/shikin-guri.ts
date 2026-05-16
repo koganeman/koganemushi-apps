@@ -48,6 +48,8 @@ export interface ShikinGuriExportData {
   budget?: CashflowMatrix | null;
   /** 予算スナップショットを取得した日時（ISO文字列） */
   budgetSnapshotAt?: string | null;
+  /** 実績取込の学習ルール（科目割当の自動適用） */
+  learnedRules?: import("@/types/general-ledger").LearnedRules;
 }
 
 /** 列コピー オプション */
