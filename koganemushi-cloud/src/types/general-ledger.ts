@@ -25,12 +25,15 @@ export interface RawLedgerTxn {
   isOpeningCarry: boolean;
 }
 
-/** 各台帳の前期繰越（期首残高） */
+/** 各台帳の前期繰越（期首残高）。繰越行が無い台帳は先頭行から逆算 */
 export interface OpeningBalance {
   accountLedger: string;
   monthKey: MonthKey;
   balance: number;
 }
+
+/** 検出した総勘定元帳フォーマット */
+export type LedgerFormatId = "freee" | "mfcloud" | "unknown";
 
 export interface ParsedLedger {
   txns: RawLedgerTxn[];
@@ -41,8 +44,12 @@ export interface ParsedLedger {
   accountLedgers: string[];
   /** スキップした行数（タイトル・ヘッダー・不正行） */
   skippedRows: number;
-  /** ヘッダー行（1列目="勘定科目"）が見つかったか */
+  /** いずれかのプロファイルのヘッダー署名を検出したか */
   headerFound: boolean;
+  /** 検出フォーマットID（未検出は "unknown"） */
+  formatId: LedgerFormatId;
+  /** 検出フォーマット表示名（未検出は null） */
+  formatName: string | null;
 }
 
 /** マッピングの由来 */

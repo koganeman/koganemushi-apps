@@ -1,131 +1,34 @@
 /**
  * 総勘定元帳CSV → 正規化トランザクション。
  *
- * 元帳の列構成（23列・ヘッダー行は1列目が "勘定科目"）:
- *   0 勘定科目 / 1 取引日 / 2 決算整理仕訳 / 3 相手勘定科目 / 4 税区分 /
- *   5 取引先 / 6 品目 / 7 部門 / 8 管理番号 / 9 メモタグ / 10 備考 /
- *   11 勘定科目コード / 12 相手取引先 / 13 相手品目 / 14 相手部門 /
- *   15 相手メモタグ / 16 相手備考 / 17 相手勘定科目コード / 18 取引内容 /
- *   19 発行元 / 20 借方金額 / 21 貸方金額 / 22 残高
+ * 列構成・ヘッダー署名は会計ソフトごとに異なるため、general-ledger-profiles
+ * のプロファイル層に委譲し、ヘッダー署名で freee / MFクラウド を自動判定する。
+ * 資産台帳（現金・各銀行口座）では inflow=入金 / outflow=出金 / balance=取引後残高。
  *
- * 資産台帳（現金・各銀行口座）では 借方=入金 / 貸方=出金 / 残高=取引後残高。
+ * 前期繰越行が無い台帳（MF単一口座エクスポート等）は、その台帳の取引日が
+ * 最小の行から `残高 −（入金−出金）` で期首残高を逆算する。
  */
 import { parseCsv } from "@/lib/shikin-guri-csv";
-import { monthKey } from "@/lib/shikin-guri-months";
+import {
+  OPENING_CARRY_LABEL,
+  dateToOrdinal,
+  detectProfile,
+} from "@/lib/general-ledger-profiles";
 import type { MonthKey } from "@/types/shikin-guri";
 import type {
+  LedgerFormatId,
   OpeningBalance,
   ParsedLedger,
   RawLedgerTxn,
 } from "@/types/general-ledger";
 
-export const OPENING_CARRY_LABEL = "前期繰越";
-
-const COL = {
-  accountLedger: 0,
-  date: 1,
-  counterpartyAccount: 3,
-  torihikisaki: 5,
-  description: 18,
-  hakkomoto: 19,
-  inflow: 20,
-  outflow: 21,
-  balance: 22,
-} as const;
-
-const MIN_COLS = 23;
-
-function parseAmount(s: string | undefined): number {
-  if (s === undefined) {
-    return 0;
-  }
-  const cleaned = s.replace(/,/g, "").replace(/[^\d.\-]/g, "");
-  if (cleaned === "" || cleaned === "-") {
-    return 0;
-  }
-  const n = parseInt(cleaned, 10);
-  return isNaN(n) ? 0 : n;
-}
-
-/**
- * "YYYY/M/D" / "YYYY-MM-DD" / "YYYY.M.D" → MonthKey。解釈不能なら null。
- * 区切りは / - . のいずれも許容（会計ソフトによりスラッシュ/ハイフン差あり）。
- */
-function dateToMonthKey(s: string): MonthKey | null {
-  const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(s.trim());
-  if (!m) {
-    return null;
-  }
-  return monthKey(parseInt(m[1], 10), parseInt(m[2], 10));
-}
-
-function pickDescription(row: string[], counterpartyAccount: string): string {
-  const candidates = [
-    row[COL.description],
-    row[COL.torihikisaki],
-    row[COL.hakkomoto],
-  ];
-  for (const c of candidates) {
-    const v = (c ?? "").trim();
-    if (v !== "") {
-      return v;
-    }
-  }
-  return counterpartyAccount;
-}
-
-function findHeaderIndex(rows: string[][]): number {
-  for (let i = 0; i < rows.length; i++) {
-    if ((rows[i][0] ?? "").trim() === "勘定科目") {
-      return i;
-    }
-  }
-  return -1;
-}
-
-function rowToTxn(
-  row: string[],
-  accountLedger: string,
-  date: string,
-  mk: MonthKey,
-): RawLedgerTxn {
-  const counterpartyAccount = (row[COL.counterpartyAccount] ?? "").trim();
-  return {
-    accountLedger,
-    date,
-    monthKey: mk,
-    counterpartyAccount,
-    description: pickDescription(row, counterpartyAccount),
-    inflow: parseAmount(row[COL.inflow]),
-    outflow: parseAmount(row[COL.outflow]),
-    balance: parseAmount(row[COL.balance]),
-    isOpeningCarry: counterpartyAccount === OPENING_CARRY_LABEL,
-  };
-}
-
-interface RowEssentials {
-  accountLedger: string;
-  date: string;
-  mk: MonthKey;
-}
-
-/** データ行として有効なら必須項目を返す。無効なら null */
-function rowEssentials(row: string[]): RowEssentials | null {
-  if (row.length < MIN_COLS) {
-    return null;
-  }
-  const accountLedger = (row[COL.accountLedger] ?? "").trim();
-  const date = (row[COL.date] ?? "").trim();
-  const mk = dateToMonthKey(date);
-  if (!accountLedger || !mk) {
-    return null;
-  }
-  return { accountLedger, date, mk };
-}
+export { OPENING_CARRY_LABEL };
 
 function emptyLedger(
   skippedRows: number,
   headerFound: boolean,
+  formatId: LedgerFormatId,
+  formatName: string | null,
 ): ParsedLedger {
   return {
     txns: [],
@@ -134,15 +37,54 @@ function emptyLedger(
     accountLedgers: [],
     skippedRows,
     headerFound,
+    formatId,
+    formatName,
   };
+}
+
+/**
+ * 繰越行が無い台帳の期首残高を先頭行から逆算する。
+ * 実繰越行のある台帳（freee全台帳）はスキップ＝二重計上なし・freee出力不変。
+ * 行はファイル順≠日付順のことがあるため取引日最小の行を選ぶ
+ * （同日はファイル先頭順）。
+ */
+function deriveOpeningBalances(
+  txns: RawLedgerTxn[],
+  openingBalances: OpeningBalance[],
+): OpeningBalance[] {
+  const carried = new Set(openingBalances.map((o) => o.accountLedger));
+  const firstByLedger = new Map<string, { txn: RawLedgerTxn; ord: number }>();
+  for (const t of txns) {
+    if (t.isOpeningCarry || carried.has(t.accountLedger)) {
+      continue;
+    }
+    const ord = dateToOrdinal(t.date);
+    if (ord === null) {
+      continue;
+    }
+    const cur = firstByLedger.get(t.accountLedger);
+    if (!cur || ord < cur.ord) {
+      firstByLedger.set(t.accountLedger, { txn: t, ord });
+    }
+  }
+  const derived: OpeningBalance[] = [];
+  for (const { txn } of firstByLedger.values()) {
+    derived.push({
+      accountLedger: txn.accountLedger,
+      monthKey: txn.monthKey,
+      balance: txn.balance - (txn.inflow - txn.outflow),
+    });
+  }
+  return [...openingBalances, ...derived];
 }
 
 export function parseGeneralLedger(csvText: string): ParsedLedger {
   const rows = parseCsv(csvText);
-  const headerIdx = findHeaderIndex(rows);
-  if (headerIdx < 0) {
-    return emptyLedger(rows.length, false);
+  const det = detectProfile(rows);
+  if (!det) {
+    return emptyLedger(rows.length, false, "unknown", null);
   }
+  const { profile, headerIdx } = det;
 
   const txns: RawLedgerTxn[] = [];
   const openingBalances: OpeningBalance[] = [];
@@ -152,31 +94,39 @@ export function parseGeneralLedger(csvText: string): ParsedLedger {
   let skippedRows = headerIdx + 1; // タイトル行 + ヘッダー行
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
-    const ess = rowEssentials(rows[r]);
-    if (!ess) {
+    const txn = profile.parseRow(rows[r]);
+    if (!txn) {
       skippedRows++;
       continue;
     }
-    const { accountLedger, date, mk } = ess;
-    if (!seenLedgers.has(accountLedger)) {
-      seenLedgers.add(accountLedger);
-      ledgerOrder.push(accountLedger);
+    if (!seenLedgers.has(txn.accountLedger)) {
+      seenLedgers.add(txn.accountLedger);
+      ledgerOrder.push(txn.accountLedger);
     }
-    const txn = rowToTxn(rows[r], accountLedger, date, mk);
     if (txn.isOpeningCarry) {
-      openingBalances.push({ accountLedger, monthKey: mk, balance: txn.balance });
+      openingBalances.push({
+        accountLedger: txn.accountLedger,
+        monthKey: txn.monthKey,
+        balance: txn.balance,
+      });
     } else {
-      monthSet.add(mk);
+      monthSet.add(txn.monthKey);
     }
     txns.push(txn);
   }
 
+  const finalOpening = profile.deriveOpeningWhenMissing
+    ? deriveOpeningBalances(txns, openingBalances)
+    : openingBalances;
+
   return {
     txns,
-    openingBalances,
+    openingBalances: finalOpening,
     months: Array.from(monthSet).sort(),
     accountLedgers: ledgerOrder,
     skippedRows,
     headerFound: true,
+    formatId: profile.id,
+    formatName: profile.name,
   };
 }

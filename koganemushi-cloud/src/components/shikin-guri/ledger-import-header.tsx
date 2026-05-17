@@ -55,7 +55,7 @@ export function LedgerHeader({
         </div>
       </div>
       <p className="text-sm text-gray-600">
-        会計ソフトの総勘定元帳CSV（Shift-JIS可）から、資金繰り実績表・明細表を生成します。
+        会計ソフト（freee / MFクラウド対応）の総勘定元帳CSV（Shift-JIS可）から、資金繰り実績表・明細表を生成します。
         相手勘定科目はルールで自動分類し、未割当はAIまたは手動で割り当てます。
         作業内容はタブを移動しても保持されます（「ロック」で誤操作による消去を防止）。
       </p>

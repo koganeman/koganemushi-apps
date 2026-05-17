@@ -222,6 +222,40 @@ describe("general-ledger-pipeline aggregatePipeline", () => {
   });
 });
 
+describe("general-ledger-pipeline MFクラウド総勘定元帳", () => {
+  function loadMfParsed() {
+    const buf = readFileSync(
+      join(SAMPLE_DIR, "MF総勘定元帳_20260517_1515.csv"),
+    );
+    const ab = buf.buffer.slice(
+      buf.byteOffset,
+      buf.byteOffset + buf.byteLength,
+    );
+    return parseGeneralLedger(decodeLedgerBytes(ab as ArrayBuffer));
+  }
+  const parsed = loadMfParsed();
+  const mapping = buildMappingTable(parsed.txns);
+  const result = aggregatePipeline(parsed, mapping);
+
+  it("MF形式として検出され集計がエラーなく完走する", () => {
+    expect(parsed.formatId).toBe("mfcloud");
+    expect(result.months.length).toBeGreaterThanOrEqual(1);
+    expect(result.months).toEqual([...result.months].sort());
+  });
+
+  it("期首は逆算 openingBalances 合計（初月以前分）と一致", () => {
+    const expected = parsed.openingBalances
+      .filter((o) => o.monthKey <= result.months[0])
+      .reduce((s, o) => s + o.balance, 0);
+    expect(result.openingBalanceFirstMonth).toBe(expected);
+    expect(result.cashflow.openingBalanceCandidate).toBe(expected);
+  });
+
+  it("逆算期首により元帳整合差0（残高連続性が保たれている）", () => {
+    expect(result.discrepancy.ledgerIntegrityDiff).toBe(0);
+  });
+});
+
 describe("general-ledger-pipeline 明細行単位の科目上書き", () => {
   const parsed = loadParsed();
   const mapping = buildMappingTable(parsed.txns);
@@ -402,6 +436,8 @@ describe("逆方向フロー上書きの基底科目衝突回避", () => {
     accountLedgers: ["口座A"],
     skippedRows: 0,
     headerFound: true,
+    formatId: "freee" as const,
+    formatName: "freee",
   };
   const mapping = buildMappingTable(txns);
 
@@ -475,6 +511,8 @@ describe("消込（科目＋同額の入金/出金ペア）", () => {
     accountLedgers: ["口座A"],
     skippedRows: 0,
     headerFound: true,
+    formatId: "freee" as const,
+    formatName: "freee",
   };
   const mapping = buildMappingTable(txns);
 
