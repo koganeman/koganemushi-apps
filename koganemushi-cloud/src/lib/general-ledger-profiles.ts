@@ -228,9 +228,90 @@ const mfCloudProfile: LedgerFormatProfile = {
   },
 };
 
-/** 判定順（同点は配列順で優先）。MFを先に置く */
+// ---------------------------------------------------------------------------
+// 弥生会計 総勘定元帳プロファイル（汎用形式・33列）
+// 先頭は複数行のメタ情報。col0 が行種別マーカー:
+//   [表題行]=ヘッダー / [前期繰越行] / [明細行]=データ /
+//   [月度合計行] [累計行] [翌期繰越行]=スキップ。
+// [表題行] の列（col0除く実体）:
+//   1部門 2勘定科目 3補助科目 4日付 5伝票No. 6作業日付 7仕訳番号 8決算
+//   9調整 10付箋1 11付箋2 12タイプ 13生成元 14部門 15税区分 16税計算区分
+//   17相手勘定科目 18相手補助科目 19相手部門 20相手税区分 21相手税計算区分
+//   22借方金額 23借方税額 24貸方金額 25貸方税額 26残高 27摘要 28請求書区分
+//   29仕入税額控除 30期日 31番号 32仕訳メモ
+//
+// 残高(col26)は勘定科目単位の連続残高で補助科目をまたぐため、台帳名は
+// 勘定科目(col2)のみ（補助で分割すると残高整合が崩れる。MFと同じ）。
+// [前期繰越行]は日付列が空のためtxn化されない。期首は先頭明細行から
+// 逆算（deriveOpeningWhenMissing=true。先頭明細の残高は繰越込みなので
+// opening=残高−(入−出) が正しい期首になる）。
+// ---------------------------------------------------------------------------
+const YAYOI_COL = {
+  account: 2,
+  sub: 3,
+  date: 4,
+  counterparty: 17,
+  inflow: 22,
+  outflow: 24,
+  balance: 26,
+  description: 27,
+} as const;
+const YAYOI_MIN_COLS = 28;
+const YAYOI_HEADER_MARK = "[表題行]";
+const YAYOI_DETAIL_MARK = "[明細行]";
+
+const yayoiProfile: LedgerFormatProfile = {
+  id: "yayoi",
+  name: "弥生会計",
+  minCols: YAYOI_MIN_COLS,
+  deriveOpeningWhenMissing: true,
+  findHeaderIndex(rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (
+        cell(r, 0) === YAYOI_HEADER_MARK &&
+        cell(r, YAYOI_COL.account) === "勘定科目" &&
+        cell(r, YAYOI_COL.counterparty) === "相手勘定科目"
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  },
+  detectScore(rows) {
+    return this.findHeaderIndex(rows) >= 0 ? 3 : 0;
+  },
+  parseRow(row) {
+    if (row.length < YAYOI_MIN_COLS || cell(row, 0) !== YAYOI_DETAIL_MARK) {
+      return null;
+    }
+    const accountLedger = cell(row, YAYOI_COL.account);
+    const date = cell(row, YAYOI_COL.date);
+    const mk = dateToMonthKey(date);
+    if (!accountLedger || !mk) {
+      return null;
+    }
+    const counterpartyAccount = cell(row, YAYOI_COL.counterparty);
+    const desc = cell(row, YAYOI_COL.description);
+    return {
+      accountLedger,
+      date,
+      monthKey: mk,
+      counterpartyAccount,
+      description: desc || counterpartyAccount,
+      inflow: parseAmount(row[YAYOI_COL.inflow]),
+      outflow: parseAmount(row[YAYOI_COL.outflow]),
+      balance: parseAmount(row[YAYOI_COL.balance]),
+      // 繰越は[前期繰越行](日付空でtxn化されない)＋逆算で対応
+      isOpeningCarry: false,
+    };
+  },
+};
+
+/** 判定順（同点は配列順で優先） */
 export const LEDGER_PROFILES: LedgerFormatProfile[] = [
   mfCloudProfile,
+  yayoiProfile,
   freeeProfile,
 ];
 

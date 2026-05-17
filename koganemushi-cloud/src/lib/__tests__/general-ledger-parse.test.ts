@@ -130,6 +130,12 @@ function loadMfLedger(): string {
   return decodeLedgerBytes(ab as ArrayBuffer);
 }
 
+function loadYayoiLedger(): string {
+  const buf = readFileSync(join(SAMPLE_DIR, "yayoi_yokin.csv"));
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  return decodeLedgerBytes(ab as ArrayBuffer);
+}
+
 describe("フォーマット自動判定", () => {
   it("freeeサンプルは formatId=freee", () => {
     const p = parseGeneralLedger(loadRawLedger());
@@ -142,6 +148,13 @@ describe("フォーマット自動判定", () => {
     const p = parseGeneralLedger(loadMfLedger());
     expect(p.formatId).toBe("mfcloud");
     expect(p.formatName).toBe("MFクラウド");
+    expect(p.headerFound).toBe(true);
+  });
+
+  it("弥生会計サンプルは formatId=yayoi", () => {
+    const p = parseGeneralLedger(loadYayoiLedger());
+    expect(p.formatId).toBe("yayoi");
+    expect(p.formatName).toBe("弥生会計");
     expect(p.headerFound).toBe(true);
   });
 
@@ -195,6 +208,51 @@ describe("MFクラウド総勘定元帳パース", () => {
   });
 
   it("台帳ごと 期首 + Σ(入金−出金) == 最終残高（列マッピング整合）", () => {
+    expectLedgerIdentity(p);
+  });
+});
+
+describe("弥生会計総勘定元帳パース", () => {
+  const p = parseGeneralLedger(loadYayoiLedger());
+
+  it("[明細行]のみ抽出（メタ/合計/繰越行はスキップ）", () => {
+    expect(p.txns.length).toBe(1057);
+    expect(p.skippedRows).toBeGreaterThan(50);
+  });
+
+  it("台帳名は勘定科目単位（補助科目で分割しない）", () => {
+    expect(p.accountLedgers).toContain("現金");
+    expect(p.accountLedgers).toContain("普通預金");
+    expect(p.accountLedgers.some((l) => l.includes("|") || l.includes(" / "))).toBe(
+      false,
+    );
+  });
+
+  it("col22→inflow / col24→outflow / col26→balance / col17→相手", () => {
+    const t = p.txns.find(
+      (x) => x.inflow === 30000 && x.counterpartyAccount === "普通預金",
+    );
+    expect(t).toBeTruthy();
+    expect(t!.outflow).toBe(0);
+    expect(t!.description).toBe("セブンATM出金");
+  });
+
+  it("負残高（現金マイナス）も符号付きで取れる", () => {
+    expect(p.txns.some((t) => t.balance < 0)).toBe(true);
+  });
+
+  it("繰越行は日付空でtxn化されず全台帳を期首逆算", () => {
+    expect(p.txns.every((t) => !t.isOpeningCarry)).toBe(true);
+    expect(p.openingBalances.length).toBe(p.accountLedgers.length);
+  });
+
+  it("台帳ごと 期首 + Σ(入金−出金) == 最終残高（列マッピング整合）", () => {
+    expectLedgerIdentity(p);
+  });
+});
+
+function expectLedgerIdentity(p: ReturnType<typeof parseGeneralLedger>): void {
+  {
     const ord = (d: string): number => {
       const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(d.trim());
       return m
@@ -219,5 +277,5 @@ describe("MFクラウド総勘定元帳パース", () => {
       );
       expect(opening + net).toBe(last.bal);
     }
-  });
-});
+  }
+}

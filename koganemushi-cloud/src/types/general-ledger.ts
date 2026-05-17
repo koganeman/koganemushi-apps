@@ -33,7 +33,7 @@ export interface OpeningBalance {
 }
 
 /** 検出した総勘定元帳フォーマット */
-export type LedgerFormatId = "freee" | "mfcloud" | "unknown";
+export type LedgerFormatId = "freee" | "mfcloud" | "yayoi" | "unknown";
 
 export interface ParsedLedger {
   txns: RawLedgerTxn[];

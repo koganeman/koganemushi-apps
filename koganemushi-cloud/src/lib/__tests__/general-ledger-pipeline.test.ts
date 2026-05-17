@@ -256,6 +256,38 @@ describe("general-ledger-pipeline MFクラウド総勘定元帳", () => {
   });
 });
 
+describe("general-ledger-pipeline 弥生会計総勘定元帳", () => {
+  function loadYayoiParsed() {
+    const buf = readFileSync(join(SAMPLE_DIR, "yayoi_yokin.csv"));
+    const ab = buf.buffer.slice(
+      buf.byteOffset,
+      buf.byteOffset + buf.byteLength,
+    );
+    return parseGeneralLedger(decodeLedgerBytes(ab as ArrayBuffer));
+  }
+  const parsed = loadYayoiParsed();
+  const mapping = buildMappingTable(parsed.txns);
+  const result = aggregatePipeline(parsed, mapping);
+
+  it("弥生形式として検出され集計が完走する", () => {
+    expect(parsed.formatId).toBe("yayoi");
+    expect(result.months.length).toBeGreaterThanOrEqual(1);
+    expect(result.months).toEqual([...result.months].sort());
+  });
+
+  it("期首は逆算 openingBalances 合計（初月以前分）と一致", () => {
+    const expected = parsed.openingBalances
+      .filter((o) => o.monthKey <= result.months[0])
+      .reduce((s, o) => s + o.balance, 0);
+    expect(result.openingBalanceFirstMonth).toBe(expected);
+    expect(result.cashflow.openingBalanceCandidate).toBe(expected);
+  });
+
+  it("逆算期首により元帳整合差0", () => {
+    expect(result.discrepancy.ledgerIntegrityDiff).toBe(0);
+  });
+});
+
 describe("general-ledger-pipeline 明細行単位の科目上書き", () => {
   const parsed = loadParsed();
   const mapping = buildMappingTable(parsed.txns);
