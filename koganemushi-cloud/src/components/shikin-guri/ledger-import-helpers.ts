@@ -6,7 +6,7 @@ export function ledgerEmptyMessage(p: ParsedLedger): string {
   if (p.headerFound) {
     return "ヘッダー行は見つかりましたが有効な取引行がありません。日付列の形式（YYYY/M/D・YYYY-MM-DD 等）や列構成をご確認ください。";
   }
-  return "総勘定元帳として解釈できませんでした（ヘッダー行『勘定科目』が見つかりません）。文字コードや出力形式をご確認ください。";
+  return "総勘定元帳として解釈できませんでした（freee / MFクラウド / 弥生会計のヘッダー行を検出できません）。文字コードや出力形式をご確認ください。";
 }
 
 /** 期間内の月だけに絞った cellsBySubject を返す */

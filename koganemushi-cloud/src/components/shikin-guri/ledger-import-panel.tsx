@@ -302,7 +302,7 @@ export function LedgerImportPanel() {
   };
 
   const statsText = parsed
-    ? `${parsed.txns.length} 取引 / ${parsed.accountLedgers.length} 台帳 / スキップ ${parsed.skippedRows} 行`
+    ? `${parsed.formatName ?? "?"} / ${parsed.txns.length} 取引 / ${parsed.accountLedgers.length} 台帳 / スキップ ${parsed.skippedRows} 行`
     : null;
 
   return (

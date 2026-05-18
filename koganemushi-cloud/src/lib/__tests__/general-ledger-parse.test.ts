@@ -121,3 +121,161 @@ describe("general-ledger-parse 日付区切り・ヘッダー判定", () => {
     expect(p.txns.length).toBe(0);
   });
 });
+
+function loadMfLedger(): string {
+  const buf = readFileSync(
+    join(SAMPLE_DIR, "MF総勘定元帳_20260517_1515.csv"),
+  );
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  return decodeLedgerBytes(ab as ArrayBuffer);
+}
+
+function loadYayoiLedger(): string {
+  const buf = readFileSync(join(SAMPLE_DIR, "yayoi_yokin.csv"));
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  return decodeLedgerBytes(ab as ArrayBuffer);
+}
+
+describe("フォーマット自動判定", () => {
+  it("freeeサンプルは formatId=freee", () => {
+    const p = parseGeneralLedger(loadRawLedger());
+    expect(p.formatId).toBe("freee");
+    expect(p.formatName).toBe("freee");
+    expect(p.headerFound).toBe(true);
+  });
+
+  it("MFクラウドサンプルは formatId=mfcloud", () => {
+    const p = parseGeneralLedger(loadMfLedger());
+    expect(p.formatId).toBe("mfcloud");
+    expect(p.formatName).toBe("MFクラウド");
+    expect(p.headerFound).toBe(true);
+  });
+
+  it("弥生会計サンプルは formatId=yayoi", () => {
+    const p = parseGeneralLedger(loadYayoiLedger());
+    expect(p.formatId).toBe("yayoi");
+    expect(p.formatName).toBe("弥生会計");
+    expect(p.headerFound).toBe(true);
+  });
+
+  it("どのプロファイルにも該当しないCSVは unknown / headerFound=false", () => {
+    const p = parseGeneralLedger("a,b,c\r\n1,2,3");
+    expect(p.formatId).toBe("unknown");
+    expect(p.formatName).toBe(null);
+    expect(p.headerFound).toBe(false);
+    expect(p.txns.length).toBe(0);
+  });
+
+  it("freee は繰越行前提のため期首逆算は発火しない（openingBalances=繰越件数）", () => {
+    const p = parseGeneralLedger(loadRawLedger());
+    const carries = p.txns.filter((t) => t.isOpeningCarry);
+    expect(p.openingBalances.length).toBe(carries.length);
+  });
+});
+
+describe("MFクラウド総勘定元帳パース", () => {
+  const p = parseGeneralLedger(loadMfLedger());
+
+  it("206データ行を抽出（ヘッダー1行スキップ）", () => {
+    expect(p.txns.length).toBe(206);
+    expect(p.skippedRows).toBeGreaterThanOrEqual(1);
+  });
+
+  it("台帳名は勘定科目単位（補助科目で分割しない＝残高連続性を保つ）", () => {
+    expect(p.accountLedgers.length).toBeGreaterThan(1);
+    expect(p.accountLedgers).toContain("普通預金");
+    expect(p.accountLedgers).toContain("当座預金");
+    expect(p.accountLedgers.some((l) => l.includes(" / "))).toBe(false);
+  });
+
+  it("入金行は col13→inflow / col15→balance（取引No 2: 1,075,637）", () => {
+    const t = p.txns.find((x) => x.inflow === 1075637);
+    expect(t).toBeTruthy();
+    expect(t!.outflow).toBe(0);
+    expect(t!.balance).toBe(1159224);
+    expect(t!.counterpartyAccount).not.toBe("");
+  });
+
+  it("出金行は col14→outflow（残高が前行から減少）", () => {
+    const t = p.txns.find((x) => x.outflow === 280000);
+    expect(t).toBeTruthy();
+    expect(t!.inflow).toBe(0);
+  });
+
+  it("繰越行が無いので全台帳で期首を逆算（台帳数=openingBalances数）", () => {
+    expect(p.txns.every((t) => !t.isOpeningCarry)).toBe(true);
+    expect(p.openingBalances.length).toBe(p.accountLedgers.length);
+  });
+
+  it("台帳ごと 期首 + Σ(入金−出金) == 最終残高（列マッピング整合）", () => {
+    expectLedgerIdentity(p);
+  });
+});
+
+describe("弥生会計総勘定元帳パース", () => {
+  const p = parseGeneralLedger(loadYayoiLedger());
+
+  it("[明細行]のみ抽出（メタ/合計/繰越行はスキップ）", () => {
+    expect(p.txns.length).toBe(1057);
+    expect(p.skippedRows).toBeGreaterThan(50);
+  });
+
+  it("台帳名は勘定科目単位（補助科目で分割しない）", () => {
+    expect(p.accountLedgers).toContain("現金");
+    expect(p.accountLedgers).toContain("普通預金");
+    expect(p.accountLedgers.some((l) => l.includes("|") || l.includes(" / "))).toBe(
+      false,
+    );
+  });
+
+  it("col22→inflow / col24→outflow / col26→balance / col17→相手", () => {
+    const t = p.txns.find(
+      (x) => x.inflow === 30000 && x.counterpartyAccount === "普通預金",
+    );
+    expect(t).toBeTruthy();
+    expect(t!.outflow).toBe(0);
+    expect(t!.description).toBe("セブンATM出金");
+  });
+
+  it("負残高（現金マイナス）も符号付きで取れる", () => {
+    expect(p.txns.some((t) => t.balance < 0)).toBe(true);
+  });
+
+  it("繰越行は日付空でtxn化されず全台帳を期首逆算", () => {
+    expect(p.txns.every((t) => !t.isOpeningCarry)).toBe(true);
+    expect(p.openingBalances.length).toBe(p.accountLedgers.length);
+  });
+
+  it("台帳ごと 期首 + Σ(入金−出金) == 最終残高（列マッピング整合）", () => {
+    expectLedgerIdentity(p);
+  });
+});
+
+function expectLedgerIdentity(p: ReturnType<typeof parseGeneralLedger>): void {
+  {
+    const ord = (d: string): number => {
+      const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(d.trim());
+      return m
+        ? parseInt(m[1], 10) * 10000 +
+            parseInt(m[2], 10) * 100 +
+            parseInt(m[3], 10)
+        : -1;
+    };
+    for (const ledger of p.accountLedgers) {
+      const rows = p.txns.filter((t) => t.accountLedger === ledger);
+      const opening = p.openingBalances.find(
+        (o) => o.accountLedger === ledger,
+      )!.balance;
+      const net = rows.reduce((s, t) => s + t.inflow - t.outflow, 0);
+      // 取引日最大（同日はファイル末尾）の行の残高
+      const last = rows.reduce(
+        (acc, t) => {
+          const o = ord(t.date);
+          return o >= acc.ord ? { ord: o, bal: t.balance } : acc;
+        },
+        { ord: -1, bal: 0 },
+      );
+      expect(opening + net).toBe(last.bal);
+    }
+  }
+}

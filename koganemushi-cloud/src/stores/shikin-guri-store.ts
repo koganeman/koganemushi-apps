@@ -4,6 +4,8 @@ import type {
   AccountRow,
   CashflowMatrix,
   CopyColumnOptions,
+  MeisaiForecastRow,
+  MeisaiForecastState,
   MeisaiRow,
   MonthKey,
   PeriodConfig,
@@ -73,6 +75,8 @@ interface ShikinGuriState {
   cashflow: CashflowMatrix;
   accounts: AccountRow[];
   meisai: MeisaiRow[];
+  /** 明細（全月）の予測入力（各科目の試算） */
+  meisaiForecast: MeisaiForecastState;
   /** 予実対比用の予算（予測）スナップショット。未取得は null */
   budget: CashflowMatrix | null;
   /** 予算スナップショット取得日時（ISO文字列）。未取得は null */
@@ -116,6 +120,23 @@ interface ShikinGuriState {
   setOpeningBalance: (value: number) => void;
   setCashflowCell: (subjectId: string, month: MonthKey, value: number) => void;
 
+  /** 予測入力: 明細行/追加行の予測値を設定 */
+  setMeisaiForecastValue: (
+    subjectId: string,
+    rowKey: string,
+    value: number
+  ) => void;
+  /** 予測入力: 追加行を1行作成 */
+  addMeisaiForecastRow: (subjectId: string) => void;
+  /** 予測入力: 追加行の摘要/値を更新 */
+  updateMeisaiForecastRow: (
+    subjectId: string,
+    id: string,
+    patch: Partial<Pick<MeisaiForecastRow, "description" | "value">>
+  ) => void;
+  /** 予測入力: 追加行を削除 */
+  removeMeisaiForecastRow: (subjectId: string, id: string) => void;
+
   addAccount: (name?: string) => void;
   removeAccount: (id: string) => void;
   renameAccount: (id: string, name: string) => void;
@@ -149,6 +170,10 @@ function defaultCashflow(): CashflowMatrix {
   return { openingBalance: 0, cells: {} };
 }
 
+function defaultMeisaiForecast(): MeisaiForecastState {
+  return { values: {}, addedRows: {} };
+}
+
 function defaultAccounts(): AccountRow[] {
   return [{ id: makeId(), name: "", balances: {} }];
 }
@@ -161,6 +186,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       cashflow: defaultCashflow(),
       accounts: defaultAccounts(),
       meisai: [],
+      meisaiForecast: defaultMeisaiForecast(),
       budget: null,
       budgetSnapshotAt: null,
       ledgerWork: null,
@@ -240,6 +266,74 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
             cashflow: {
               ...state.cashflow,
               cells: { ...state.cashflow.cells, [subjectId]: nextRow },
+            },
+          };
+        }),
+
+      setMeisaiForecastValue: (subjectId, rowKey, value) =>
+        set((state) => {
+          const prev = state.meisaiForecast.values[subjectId] ?? {};
+          return {
+            meisaiForecast: {
+              ...state.meisaiForecast,
+              values: {
+                ...state.meisaiForecast.values,
+                [subjectId]: { ...prev, [rowKey]: value },
+              },
+            },
+          };
+        }),
+
+      addMeisaiForecastRow: (subjectId) =>
+        set((state) => {
+          const prev = state.meisaiForecast.addedRows[subjectId] ?? [];
+          const row: MeisaiForecastRow = {
+            id: makeId(),
+            description: "",
+            value: 0,
+          };
+          return {
+            meisaiForecast: {
+              ...state.meisaiForecast,
+              addedRows: {
+                ...state.meisaiForecast.addedRows,
+                [subjectId]: [...prev, row],
+              },
+            },
+          };
+        }),
+
+      updateMeisaiForecastRow: (subjectId, id, patch) =>
+        set((state) => {
+          const prev = state.meisaiForecast.addedRows[subjectId] ?? [];
+          return {
+            meisaiForecast: {
+              ...state.meisaiForecast,
+              addedRows: {
+                ...state.meisaiForecast.addedRows,
+                [subjectId]: prev.map((r) =>
+                  r.id === id ? { ...r, ...patch } : r
+                ),
+              },
+            },
+          };
+        }),
+
+      removeMeisaiForecastRow: (subjectId, id) =>
+        set((state) => {
+          const prevRows = state.meisaiForecast.addedRows[subjectId] ?? [];
+          const nextValues = { ...(state.meisaiForecast.values[subjectId] ?? {}) };
+          delete nextValues[id];
+          return {
+            meisaiForecast: {
+              values: {
+                ...state.meisaiForecast.values,
+                [subjectId]: nextValues,
+              },
+              addedRows: {
+                ...state.meisaiForecast.addedRows,
+                [subjectId]: prevRows.filter((r) => r.id !== id),
+              },
             },
           };
         }),
@@ -370,6 +464,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
                 }))
               : defaultAccounts(),
           meisai: data.meisai ?? [],
+          meisaiForecast: data.meisaiForecast ?? defaultMeisaiForecast(),
           budget: data.budget ?? null,
           budgetSnapshotAt: data.budgetSnapshotAt ?? null,
           learnedRules: data.learnedRules ?? defaultLearnedRules(),
@@ -382,6 +477,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           cashflow: defaultCashflow(),
           accounts: defaultAccounts(),
           meisai: [],
+          meisaiForecast: defaultMeisaiForecast(),
           budget: null,
           budgetSnapshotAt: null,
           // ロック中は実績取込の作業状態を保持
@@ -396,6 +492,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         cashflow: state.cashflow,
         accounts: state.accounts,
         meisai: state.meisai,
+        meisaiForecast: state.meisaiForecast,
         budget: state.budget,
         budgetSnapshotAt: state.budgetSnapshotAt,
         learnedRules: state.learnedRules,
@@ -412,6 +509,7 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           },
           accounts: p.accounts ?? current.accounts,
           meisai: p.meisai ?? current.meisai,
+          meisaiForecast: p.meisaiForecast ?? current.meisaiForecast,
           budget: p.budget ?? current.budget,
           budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
           learnedRules: p.learnedRules ?? current.learnedRules,
