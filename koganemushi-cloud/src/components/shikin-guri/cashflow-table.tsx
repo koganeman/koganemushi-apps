@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useShikinGuriStore, PERIOD_LENGTH_MONTHS } from "@/stores/shikin-guri-store";
 import {
   enumerateMonths,
@@ -33,6 +33,30 @@ const SECTION_HEADER_BG: Record<SubjectSection, string> = {
 
 const COL_WIDTH = 110;
 
+/** readOnly セル用の安定参照（毎レンダーで新規関数を作らずmemoを効かせる） */
+const NOOP = (): void => {};
+
+/** SUBJECTS はモジュール定数。セクション別の収入/支出リストを一度だけ算出。 */
+const SECTION_SUBJECTS: Record<
+  SubjectSection,
+  { income: { id: string; label: string }[]; expense: { id: string; label: string }[] }
+> = (() => {
+  const out = {} as Record<
+    SubjectSection,
+    { income: { id: string; label: string }[]; expense: { id: string; label: string }[] }
+  >;
+  for (const section of SECTION_ORDER) {
+    const subjects = SUBJECTS.filter((s) => s.section === section).sort(
+      (a, b) => a.order - b.order
+    );
+    out[section] = {
+      income: subjects.filter((s) => s.kind === "income"),
+      expense: subjects.filter((s) => s.kind === "expense"),
+    };
+  }
+  return out;
+})();
+
 export function CashflowTable() {
   const period = useShikinGuriStore((s) => s.period);
   const cashflow = useShikinGuriStore((s) => s.cashflow);
@@ -64,10 +88,21 @@ export function CashflowTable() {
     return { meisaiSubjects: subjects, meisaiSubjectMonth: cells };
   }, [meisai]);
 
-  const headerCellClass = (m: MonthKey) =>
-    isForecastMonth(m, period.currentMonth) ? "bg-amber-100" : "bg-blue-100";
-  const cellBg = (m: MonthKey) =>
-    isForecastMonth(m, period.currentMonth) ? "bg-amber-50/40" : "";
+  const headerCellClass = useCallback(
+    (m: MonthKey) =>
+      isForecastMonth(m, period.currentMonth) ? "bg-amber-100" : "bg-blue-100",
+    [period.currentMonth]
+  );
+  const cellBg = useCallback(
+    (m: MonthKey) =>
+      isForecastMonth(m, period.currentMonth) ? "bg-amber-50/40" : "",
+    [period.currentMonth]
+  );
+  const onOpenMeisai = useCallback(
+    (subjectId: string, month?: MonthKey) =>
+      setMeisaiPopup({ subjectId, month }),
+    []
+  );
 
   return (
     <div className="px-4 py-4">
@@ -147,7 +182,7 @@ export function CashflowTable() {
                   ) : (
                     <EditableYenCell
                       value={derived.opening[m] ?? 0}
-                      onChange={() => {}}
+                      onChange={NOOP}
                       readOnly
                       bg="bg-gray-100/50"
                     />
@@ -157,29 +192,22 @@ export function CashflowTable() {
             </tr>
 
             {/* セクションごと */}
-            {SECTION_ORDER.map((section) => {
-              const subjects = SUBJECTS.filter((s) => s.section === section).sort(
-                (a, b) => a.order - b.order
-              );
-              const incomeSubjects = subjects.filter((s) => s.kind === "income");
-              const expenseSubjects = subjects.filter((s) => s.kind === "expense");
-              return (
-                <SectionGroup
-                  key={section}
-                  section={section}
-                  incomeSubjects={incomeSubjects}
-                  expenseSubjects={expenseSubjects}
-                  months={months}
-                  derived={derived}
-                  cellBg={cellBg}
-                  setCell={setCell}
-                  cashflow={cashflow}
-                  meisaiSubjects={meisaiSubjects}
-                  meisaiSubjectMonth={meisaiSubjectMonth}
-                  onOpenMeisai={(subjectId, month) => setMeisaiPopup({ subjectId, month })}
-                />
-              );
-            })}
+            {SECTION_ORDER.map((section) => (
+              <SectionGroup
+                key={section}
+                section={section}
+                incomeSubjects={SECTION_SUBJECTS[section].income}
+                expenseSubjects={SECTION_SUBJECTS[section].expense}
+                months={months}
+                derived={derived}
+                cellBg={cellBg}
+                setCell={setCell}
+                cashflow={cashflow}
+                meisaiSubjects={meisaiSubjects}
+                meisaiSubjectMonth={meisaiSubjectMonth}
+                onOpenMeisai={onOpenMeisai}
+              />
+            ))}
 
             {/* 月次収支計 */}
             <tr className="bg-yellow-50 font-semibold">
@@ -188,7 +216,7 @@ export function CashflowTable() {
                 <td key={m} className={`border p-0 ${cellBg(m)}`}>
                   <EditableYenCell
                     value={derived.monthlyNet[m] ?? 0}
-                    onChange={() => {}}
+                    onChange={NOOP}
                     readOnly
                     bold
                   />
@@ -205,7 +233,7 @@ export function CashflowTable() {
                 <td key={m} className={`border p-0 ${cellBg(m)}`}>
                   <EditableYenCell
                     value={derived.closing[m] ?? 0}
-                    onChange={() => {}}
+                    onChange={NOOP}
                     readOnly
                     bold
                   />
@@ -297,7 +325,7 @@ function SectionGroup({
           months={months}
           sectionBg={sectionBg}
           cellBg={cellBg}
-          cashflow={cashflow}
+          row={cashflow.cells[s.id]}
           setCell={setCell}
           meisaiSubjects={meisaiSubjects}
           meisaiSubjectMonth={meisaiSubjectMonth}
@@ -308,7 +336,7 @@ function SectionGroup({
         <td className="border px-2 py-1 sticky left-0 z-10 bg-gray-50">　収入計</td>
         {months.map((m) => (
           <td key={m} className={`border p-0 ${cellBg(m)} bg-gray-50/80`}>
-            <EditableYenCell value={incomeKey[m] ?? 0} onChange={() => {}} readOnly />
+            <EditableYenCell value={incomeKey[m] ?? 0} onChange={NOOP} readOnly />
           </td>
         ))}
       </tr>
@@ -321,7 +349,7 @@ function SectionGroup({
           months={months}
           sectionBg={sectionBg}
           cellBg={cellBg}
-          cashflow={cashflow}
+          row={cashflow.cells[s.id]}
           setCell={setCell}
           meisaiSubjects={meisaiSubjects}
           meisaiSubjectMonth={meisaiSubjectMonth}
@@ -332,7 +360,7 @@ function SectionGroup({
         <td className="border px-2 py-1 sticky left-0 z-10 bg-gray-50">　支出計</td>
         {months.map((m) => (
           <td key={m} className={`border p-0 ${cellBg(m)} bg-gray-50/80`}>
-            <EditableYenCell value={expenseKey[m] ?? 0} onChange={() => {}} readOnly />
+            <EditableYenCell value={expenseKey[m] ?? 0} onChange={NOOP} readOnly />
           </td>
         ))}
       </tr>
@@ -344,7 +372,7 @@ function SectionGroup({
         </td>
         {months.map((m) => (
           <td key={m} className={`border p-0 ${cellBg(m)} bg-gray-100/80`}>
-            <EditableYenCell value={netKey[m] ?? 0} onChange={() => {}} readOnly bold />
+            <EditableYenCell value={netKey[m] ?? 0} onChange={NOOP} readOnly bold />
           </td>
         ))}
       </tr>
@@ -357,19 +385,24 @@ interface SubjectRowProps {
   months: MonthKey[];
   sectionBg: string;
   cellBg: (m: MonthKey) => string;
-  cashflow: { cells: Record<string, Record<MonthKey, number>> };
+  /** この科目の月→金額（ストアが科目単位で不変更新するため、編集科目のみ参照が変わる） */
+  row: Record<MonthKey, number> | undefined;
   setCell: (subjectId: string, m: MonthKey, value: number) => void;
   meisaiSubjects: Set<string>;
   meisaiSubjectMonth: Set<string>;
   onOpenMeisai: (subjectId: string, month?: MonthKey) => void;
 }
 
-function SubjectRow({
+/**
+ * memo化により、setCashflowCell が編集科目の row 参照のみ更新する性質を
+ * 利用して「編集した科目の行だけ」再描画する（他科目の36セルは据え置き）。
+ */
+const SubjectRow = memo(function SubjectRow({
   subject: s,
   months,
   sectionBg,
   cellBg,
-  cashflow,
+  row,
   setCell,
   meisaiSubjects,
   meisaiSubjectMonth,
@@ -399,7 +432,7 @@ function SubjectRow({
         return (
           <td key={m} className={`border p-0 ${cellBg(m)} relative group`}>
             <EditableYenCell
-              value={cashflow.cells[s.id]?.[m] ?? 0}
+              value={row?.[m] ?? 0}
               onChange={(v) => setCell(s.id, m, v)}
               ariaLabel={`${s.label} ${m}`}
             />
@@ -422,5 +455,5 @@ function SubjectRow({
       })}
     </tr>
   );
-}
+});
 

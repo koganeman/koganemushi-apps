@@ -9,6 +9,15 @@ import type {
   AiMappingRequestItem,
   AiMappingResultItem,
 } from "@/types/general-ledger";
+import {
+  checkRateLimit,
+  clientError,
+  mapAnthropicError,
+  readJsonBody,
+} from "@/lib/api-guard";
+
+/** items 配列の最大長（コスト増幅DoS防止） */
+const MAX_ITEMS = 300;
 
 interface RequestBody {
   items: AiMappingRequestItem[];
@@ -29,40 +38,20 @@ interface SuccessResponse {
   };
 }
 
-function mapAnthropicError(err: unknown): NextResponse<ErrorResponse> {
-  if (err instanceof Anthropic.RateLimitError) {
-    return NextResponse.json(
-      { error: "Claude APIのレート制限に達しました。しばらく待ってから再試行してください。" },
-      { status: 429 },
-    );
-  }
-  if (err instanceof Anthropic.AuthenticationError) {
-    return NextResponse.json(
-      { error: "Claude APIキーが無効です。.env.local の ANTHROPIC_API_KEY を確認してください。" },
-      { status: 401 },
-    );
-  }
-  if (err instanceof Anthropic.APIError) {
-    return NextResponse.json(
-      { error: `Claude APIエラー (${err.status}): ${err.message}` },
-      { status: 502 },
-    );
-  }
-  const message = err instanceof Error ? err.message : "未知のエラー";
-  return NextResponse.json(
-    { error: `AIマッピングに失敗しました: ${message}` },
-    { status: 500 },
-  );
-}
-
-/** モデル出力からJSON配列を寛容に抽出 */
+/** モデル出力からJSON配列を寛容に抽出（サイズ上限・parse失敗を内包） */
 function extractJsonArray(text: string): unknown {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
+  // モデル出力は攻撃者制御CSVの影響を受けうるため長さを制限
+  const capped = text.length > 200_000 ? text.slice(0, 200_000) : text;
+  const start = capped.indexOf("[");
+  const end = capped.lastIndexOf("]");
   if (start < 0 || end <= start) {
     throw new Error("AI応答からJSON配列を抽出できませんでした");
   }
-  return JSON.parse(text.slice(start, end + 1));
+  try {
+    return JSON.parse(capped.slice(start, end + 1));
+  } catch {
+    throw new Error("AI応答のJSON解析に失敗しました");
+  }
 }
 
 function pickSubjectId(v: unknown): string | null {
@@ -181,27 +170,32 @@ async function generateMapping(
 export async function POST(
   req: NextRequest,
 ): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY が設定されていません。.env.local に設定してください。" },
-      { status: 500 },
-    );
+  const limited = checkRateLimit(req);
+  if (limited) {
+    return limited;
   }
 
-  let body: RequestBody;
-  try {
-    body = (await req.json()) as RequestBody;
-  } catch {
-    return NextResponse.json({ error: "リクエストJSONの形式が不正です。" }, { status: 400 });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error("[api-error] ANTHROPIC_API_KEY 未設定");
+    return clientError("AIサービスが利用できません。管理者にお問い合わせください。", 503);
   }
+
+  const parsed = await readJsonBody(req);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+  const body = parsed.data as RequestBody;
   if (!Array.isArray(body.items) || body.items.length === 0) {
-    return NextResponse.json({ error: "items配列が必要です。" }, { status: 400 });
+    return clientError("items配列が必要です。", 400);
+  }
+  if (body.items.length > MAX_ITEMS) {
+    return clientError(`items が多すぎます（最大${MAX_ITEMS}件）。`, 400);
   }
 
   try {
     return NextResponse.json(await generateMapping(apiKey, body.items));
   } catch (err) {
-    return mapAnthropicError(err);
+    return mapAnthropicError(err, "AIマッピングに失敗しました。時間をおいて再試行してください。");
   }
 }

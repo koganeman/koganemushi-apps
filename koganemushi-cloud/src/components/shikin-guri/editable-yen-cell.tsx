@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { formatYen, parseYen } from "@/lib/format";
 
 interface Props {
@@ -18,7 +18,12 @@ interface Props {
   ariaLabel?: string;
 }
 
-export function EditableYenCell({
+/**
+ * 1セル＝1入力。グリッドは36ヶ月×約45科目で1,500セル超になるため
+ * memo化し、props（value/onChange等）が変わったセルだけ再描画する。
+ * onChange は呼び出し側で安定参照にすること（不安定だとmemoが無効）。
+ */
+export const EditableYenCell = memo(function EditableYenCell({
   value,
   onChange,
   readOnly,
@@ -82,4 +87,4 @@ export function EditableYenCell({
       className={`w-full px-2 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-400 ${align} ${colorClass} ${weight} ${bg}`}
     />
   );
-}
+});
