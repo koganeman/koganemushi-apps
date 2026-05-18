@@ -3,6 +3,11 @@
  * src/data/locaben/*.json として出力する。
  *
  * 実行: npm run extract:locaben
+ *
+ * 注: xlsx(SheetJS) は修正版の無い既知脆弱性(プロトタイプ汚染)があり、
+ * アプリ本体では未使用のため依存から除外している。このオフライン
+ * スクリプトを実行する場合のみ一時的に `npm i -D xlsx` を行うこと
+ * （信頼できる手元の .xlsm のみ処理する想定）。
  */
 import * as XLSX from "xlsx";
 import * as path from "path";

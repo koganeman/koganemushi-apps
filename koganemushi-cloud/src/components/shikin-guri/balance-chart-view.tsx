@@ -1,8 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useShikinGuriStore, PERIOD_LENGTH_MONTHS } from "@/stores/shikin-guri-store";
 import { formatJpMonth, addMonths } from "@/lib/shikin-guri-months";
-import { BalanceChart } from "./balance-chart";
+
+// recharts は重いため、グラフタブを開いたときだけ読み込む（初期バンドルから除外）
+const BalanceChart = dynamic(
+  () => import("./balance-chart").then((m) => m.BalanceChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[520px] flex items-center justify-center text-sm text-gray-400">
+        グラフを読み込み中…
+      </div>
+    ),
+  }
+);
 
 export function BalanceChartView() {
   const period = useShikinGuriStore((s) => s.period);

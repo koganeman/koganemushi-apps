@@ -5,6 +5,15 @@ import {
   BS_ADVICE_SYSTEM_PROMPT,
   buildBSAdvicePrompt,
 } from "@/lib/balance-sheet-advice";
+import {
+  checkRateLimit,
+  clientError,
+  mapAnthropicError,
+  readJsonBody,
+} from "@/lib/api-guard";
+
+/** results 配列の最大長（決算期は通常数期分） */
+const MAX_RESULTS = 24;
 
 interface RequestBody {
   results: BalanceSheetResult[];
@@ -23,32 +32,6 @@ interface SuccessResponse {
     cacheReadInputTokens: number;
     cacheCreationInputTokens: number;
   };
-}
-
-function mapAnthropicError(err: unknown): NextResponse<ErrorResponse> {
-  if (err instanceof Anthropic.RateLimitError) {
-    return NextResponse.json(
-      { error: "Claude APIのレート制限に達しました。しばらく待ってから再試行してください。" },
-      { status: 429 },
-    );
-  }
-  if (err instanceof Anthropic.AuthenticationError) {
-    return NextResponse.json(
-      { error: "Claude APIキーが無効です。.env.local の ANTHROPIC_API_KEY を確認してください。" },
-      { status: 401 },
-    );
-  }
-  if (err instanceof Anthropic.APIError) {
-    return NextResponse.json(
-      { error: `Claude APIエラー (${err.status}): ${err.message}` },
-      { status: 502 },
-    );
-  }
-  const message = err instanceof Error ? err.message : "未知のエラー";
-  return NextResponse.json(
-    { error: `アドバイス生成に失敗しました: ${message}` },
-    { status: 500 },
-  );
 }
 
 async function generateAdvice(
@@ -90,27 +73,32 @@ async function generateAdvice(
 export async function POST(
   req: NextRequest,
 ): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY が設定されていません。.env.local に設定してください。" },
-      { status: 500 },
-    );
+  const limited = checkRateLimit(req);
+  if (limited) {
+    return limited;
   }
 
-  let body: RequestBody;
-  try {
-    body = (await req.json()) as RequestBody;
-  } catch {
-    return NextResponse.json({ error: "リクエストJSONの形式が不正です。" }, { status: 400 });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.error("[api-error] ANTHROPIC_API_KEY 未設定");
+    return clientError("AIサービスが利用できません。管理者にお問い合わせください。", 503);
   }
+
+  const parsed = await readJsonBody(req);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+  const body = parsed.data as RequestBody;
   if (!Array.isArray(body.results) || body.results.length === 0) {
-    return NextResponse.json({ error: "results配列が必要です。" }, { status: 400 });
+    return clientError("results配列が必要です。", 400);
+  }
+  if (body.results.length > MAX_RESULTS) {
+    return clientError(`results が多すぎます（最大${MAX_RESULTS}件）。`, 400);
   }
 
   try {
     return NextResponse.json(await generateAdvice(apiKey, body.results));
   } catch (err) {
-    return mapAnthropicError(err);
+    return mapAnthropicError(err, "アドバイス生成に失敗しました。時間をおいて再試行してください。");
   }
 }
