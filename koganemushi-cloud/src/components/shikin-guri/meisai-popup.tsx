@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   useShikinGuriStore,
   PERIOD_LENGTH_MONTHS,
@@ -196,6 +197,58 @@ function AddedRows({
   );
 }
 
+/** ヘッダードラッグでウィンドウを移動するためのオフセット管理 */
+function useDragOffset() {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef<{
+    px: number;
+    py: number;
+    ox: number;
+    oy: number;
+  } | null>(null);
+
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      // 閉じるボタン等の上から始まったドラッグは無視
+      if ((e.target as HTMLElement).closest("button")) {
+        return;
+      }
+      drag.current = {
+        px: e.clientX,
+        py: e.clientY,
+        ox: offset.x,
+        oy: offset.y,
+      };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    [offset.x, offset.y]
+  );
+
+  const onPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const d = drag.current;
+      if (!d) {
+        return;
+      }
+      setOffset({
+        x: d.ox + (e.clientX - d.px),
+        y: d.oy + (e.clientY - d.py),
+      });
+    },
+    []
+  );
+
+  const onPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      drag.current = null;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    },
+    []
+  );
+
+  return { offset, dragHandlers: { onPointerDown, onPointerMove, onPointerUp } };
+}
+
 export function MeisaiPopup({ subjectId, month, onClose }: Props) {
   const meisai = useShikinGuriStore((s) => s.meisai);
   const cashflow = useShikinGuriStore((s) => s.cashflow);
@@ -207,6 +260,8 @@ export function MeisaiPopup({ subjectId, month, onClose }: Props) {
   );
   const setForecastValue = useShikinGuriStore((s) => s.setMeisaiForecastValue);
   const addRow = useShikinGuriStore((s) => s.addMeisaiForecastRow);
+
+  const { offset, dragHandlers } = useDragOffset();
 
   // 全月モード（month 指定なし）のときだけ予測入力UIを出す
   const forecastMode = !month;
@@ -259,10 +314,25 @@ export function MeisaiPopup({ subjectId, month, onClose }: Props) {
   const empty = filteredRows.length === 0 && addedRows.length === 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
-        <div className="px-6 py-3 border-b flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
+    // 暗幕なし＋pointer-events-none で、背後の資金繰り表を見ながら操作できる
+    <div className="fixed inset-0 z-50 pointer-events-none">
+      <div
+        className="pointer-events-auto absolute left-1/2 top-1/2 bg-white rounded-lg shadow-2xl ring-1 ring-black/10 w-[1100px] max-w-[95vw] max-h-[90vh] flex flex-col"
+        style={{
+          transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px)`,
+        }}
+      >
+        <div
+          {...dragHandlers}
+          className="px-6 py-3 border-b flex items-center justify-between cursor-move select-none touch-none bg-gray-50/80 rounded-t-lg"
+          title="ドラッグでウィンドウを移動"
+        >
+          <h3 className="text-lg font-semibold">
+            <span className="text-gray-400 mr-2" aria-hidden>
+              ⠿
+            </span>
+            {title}
+          </h3>
           <button
             type="button"
             onClick={onClose}
