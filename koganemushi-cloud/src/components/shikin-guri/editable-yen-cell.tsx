@@ -16,6 +16,14 @@ interface Props {
   /** 右寄せ（デフォルト true） */
   rightAlign?: boolean;
   ariaLabel?: string;
+  /**
+   * Enterで「同列・次行」セルへフォーカス移動するオプトイン。
+   * 3つ全部指定したセル群（同一 group）の間で動作する。
+   * 次行が見つからなければ blur のみ（既存挙動）。
+   */
+  enterNavGroup?: string;
+  enterNavRow?: number;
+  enterNavCol?: number;
 }
 
 /**
@@ -32,6 +40,9 @@ export const EditableYenCell = memo(function EditableYenCell({
   bold = false,
   rightAlign = true,
   ariaLabel,
+  enterNavGroup,
+  enterNavRow,
+  enterNavCol,
 }: Props) {
   const [text, setText] = useState<string>(formatYen(value));
   const [focused, setFocused] = useState(false);
@@ -59,6 +70,9 @@ export const EditableYenCell = memo(function EditableYenCell({
     );
   }
 
+  const navEnabled =
+    enterNavGroup != null && enterNavRow != null && enterNavCol != null;
+
   return (
     <input
       ref={inputRef}
@@ -66,6 +80,9 @@ export const EditableYenCell = memo(function EditableYenCell({
       inputMode="numeric"
       aria-label={ariaLabel}
       value={text}
+      data-enav-grp={navEnabled ? enterNavGroup : undefined}
+      data-enav-row={navEnabled ? enterNavRow : undefined}
+      data-enav-col={navEnabled ? enterNavCol : undefined}
       onFocus={(e) => {
         setFocused(true);
         // 入力フィールドを編集しやすいよう、空のときは空文字に
@@ -81,7 +98,15 @@ export const EditableYenCell = memo(function EditableYenCell({
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          e.preventDefault();
           (e.target as HTMLInputElement).blur();
+          if (navEnabled) {
+            const sel = `input[data-enav-grp="${enterNavGroup}"][data-enav-row="${(enterNavRow as number) + 1}"][data-enav-col="${enterNavCol}"]`;
+            const nextEl = document.querySelector<HTMLInputElement>(sel);
+            if (nextEl) {
+              nextEl.focus();
+            }
+          }
         }
       }}
       className={`w-full px-2 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-blue-400 ${align} ${colorClass} ${weight} ${bg}`}

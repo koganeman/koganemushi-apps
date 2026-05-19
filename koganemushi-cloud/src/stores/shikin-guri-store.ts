@@ -2,16 +2,28 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   AccountRow,
+  AppliedTaxTranscription,
   CashflowMatrix,
+  ConsumptionTaxInput,
   CopyColumnOptions,
+  CorporateTaxInput,
+  DefenseTaxMode,
+  FiscalPeriodConfig,
   MeisaiForecastRow,
   MeisaiForecastState,
   MeisaiRow,
   MonthKey,
   PeriodConfig,
   ShikinGuriExportData,
+  TaxForecastState,
 } from "@/types/shikin-guri";
 import { currentMonthKey, addMonths } from "@/lib/shikin-guri-months";
+import {
+  calcTaxForecast,
+  computeTranscriptionCells,
+  emptyAppliedTaxTranscription,
+  revertTranscriptionCells,
+} from "@/lib/tax-forecast-calc";
 import type {
   CashflowCsvImportResult,
   AccountCsvImportResult,
@@ -47,6 +59,7 @@ export type ShikinGuriTab =
   | "accounts"
   | "chart"
   | "budget"
+  | "tax"
   | "ledger";
 
 /** CashflowMatrix を深くコピー（cells はネストするので行ごとに複製） */
@@ -77,6 +90,10 @@ interface ShikinGuriState {
   meisai: MeisaiRow[];
   /** 明細（全月）の予測入力（各科目の試算） */
   meisaiForecast: MeisaiForecastState;
+  /** 納税予定タブの入力 */
+  taxForecast: TaxForecastState;
+  /** 納税予定の資金繰り表転記スナップショット（冪等転記用） */
+  appliedTaxTranscription: AppliedTaxTranscription;
   /** 予実対比用の予算（予測）スナップショット。未取得は null */
   budget: CashflowMatrix | null;
   /** 予算スナップショット取得日時（ISO文字列）。未取得は null */
@@ -137,6 +154,27 @@ interface ShikinGuriState {
   /** 予測入力: 追加行を削除 */
   removeMeisaiForecastRow: (subjectId: string, id: string) => void;
 
+  /** 納税予定: 1期目決算月を設定 */
+  setFiscalPeriod: (partial: Partial<FiscalPeriodConfig>) => void;
+  /** 納税予定: 消費税概算入力を部分更新（期 index 0-2） */
+  setConsumptionTaxInput: (
+    periodIndex: 0 | 1 | 2,
+    patch: Partial<ConsumptionTaxInput>
+  ) => void;
+  /** 納税予定: 法人税概算入力を部分更新（期 index 0-2） */
+  setCorporateTaxInput: (
+    periodIndex: 0 | 1 | 2,
+    patch: Partial<CorporateTaxInput>
+  ) => void;
+  /** 納税予定: 防衛特別法人税モード切替 */
+  setDefenseTaxMode: (mode: DefenseTaxMode) => void;
+  /** 納税予定: 源泉所得税(納期特例) 手入力 */
+  setWithholdingTax: (month: MonthKey, value: number) => void;
+  /** 納税予定: 資金繰り表へ冪等加算転記（excludeBefore より前の月は除外） */
+  applyTaxTranscription: (excludeBefore?: MonthKey | null) => void;
+  /** 納税予定: 転記を取消（前回適用分を引き戻す） */
+  clearTaxTranscription: () => void;
+
   addAccount: (name?: string) => void;
   removeAccount: (id: string) => void;
   renameAccount: (id: string, name: string) => void;
@@ -174,6 +212,57 @@ function defaultMeisaiForecast(): MeisaiForecastState {
   return { values: {}, addedRows: {} };
 }
 
+function defaultConsumptionTaxInput(): ConsumptionTaxInput {
+  return {
+    preTaxProfit: 0,
+    officerCompensation: 0,
+    otherSalary: 0,
+    legalWelfare: 0,
+    depreciation: 0,
+    insurance: 0,
+    interestPaid: 0,
+    otherNonTaxablePurchase: 0,
+    interestReceived: 0,
+    dividendReceived: 0,
+    otherNonTaxableSales: 0,
+    prepaidTax: 0,
+  };
+}
+
+function defaultCorporateTaxInput(): CorporateTaxInput {
+  return {
+    carryForwardLoss: 0,
+    prevBusinessTaxDeduction: 0,
+    prevBusinessTaxDeductionManual: false,
+    perCapitaLevy: 70000,
+    prepaidTax: 0,
+  };
+}
+
+function defaultTaxForecast(): TaxForecastState {
+  const { year, month } = (() => {
+    const m = /^(\d{4})-(\d{2})$/.exec(currentMonthKey());
+    return m
+      ? { year: parseInt(m[1], 10), month: parseInt(m[2], 10) }
+      : { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+  })();
+  return {
+    fiscalPeriod: { closingYear: year, closingMonth: month },
+    consumptionTax: [
+      defaultConsumptionTaxInput(),
+      defaultConsumptionTaxInput(),
+      defaultConsumptionTaxInput(),
+    ],
+    corporateTax: [
+      defaultCorporateTaxInput(),
+      defaultCorporateTaxInput(),
+      defaultCorporateTaxInput(),
+    ],
+    defenseTaxMode: "auto",
+    withholdingTax: {},
+  };
+}
+
 function defaultAccounts(): AccountRow[] {
   return [{ id: makeId(), name: "", balances: {} }];
 }
@@ -187,6 +276,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       accounts: defaultAccounts(),
       meisai: [],
       meisaiForecast: defaultMeisaiForecast(),
+      taxForecast: defaultTaxForecast(),
+      appliedTaxTranscription: emptyAppliedTaxTranscription(),
       budget: null,
       budgetSnapshotAt: null,
       ledgerWork: null,
@@ -338,6 +429,82 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           };
         }),
 
+      setFiscalPeriod: (partial) =>
+        set((state) => ({
+          taxForecast: {
+            ...state.taxForecast,
+            fiscalPeriod: { ...state.taxForecast.fiscalPeriod, ...partial },
+          },
+        })),
+
+      setConsumptionTaxInput: (periodIndex, patch) =>
+        set((state) => {
+          const next = [...state.taxForecast.consumptionTax] as
+            TaxForecastState["consumptionTax"];
+          next[periodIndex] = { ...next[periodIndex], ...patch };
+          return {
+            taxForecast: { ...state.taxForecast, consumptionTax: next },
+          };
+        }),
+
+      setCorporateTaxInput: (periodIndex, patch) =>
+        set((state) => {
+          const next = [...state.taxForecast.corporateTax] as
+            TaxForecastState["corporateTax"];
+          next[periodIndex] = { ...next[periodIndex], ...patch };
+          return {
+            taxForecast: { ...state.taxForecast, corporateTax: next },
+          };
+        }),
+
+      setDefenseTaxMode: (defenseTaxMode) =>
+        set((state) => ({
+          taxForecast: { ...state.taxForecast, defenseTaxMode },
+        })),
+
+      setWithholdingTax: (month, value) =>
+        set((state) => ({
+          taxForecast: {
+            ...state.taxForecast,
+            withholdingTax: {
+              ...state.taxForecast.withholdingTax,
+              [month]: value,
+            },
+          },
+        })),
+
+      applyTaxTranscription: (excludeBefore = null) =>
+        set((state) => {
+          const { schedule } = calcTaxForecast(state.taxForecast);
+          const rows = excludeBefore
+            ? schedule.filter((r) => r.month > excludeBefore)
+            : schedule;
+          const { cells, nextDeltas } = computeTranscriptionCells(
+            state.cashflow.cells,
+            state.appliedTaxTranscription.deltas,
+            rows
+          );
+          return {
+            cashflow: { ...state.cashflow, cells },
+            appliedTaxTranscription: {
+              appliedAt: new Date().toISOString(),
+              deltas: nextDeltas,
+            },
+          };
+        }),
+
+      clearTaxTranscription: () =>
+        set((state) => {
+          const cells = revertTranscriptionCells(
+            state.cashflow.cells,
+            state.appliedTaxTranscription.deltas
+          );
+          return {
+            cashflow: { ...state.cashflow, cells },
+            appliedTaxTranscription: emptyAppliedTaxTranscription(),
+          };
+        }),
+
       addAccount: (name = "") =>
         set((state) => ({
           accounts: [...state.accounts, { id: makeId(), name, balances: {} }],
@@ -465,6 +632,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
               : defaultAccounts(),
           meisai: data.meisai ?? [],
           meisaiForecast: data.meisaiForecast ?? defaultMeisaiForecast(),
+          taxForecast: data.taxForecast ?? defaultTaxForecast(),
+          appliedTaxTranscription:
+            data.appliedTaxTranscription ?? emptyAppliedTaxTranscription(),
           budget: data.budget ?? null,
           budgetSnapshotAt: data.budgetSnapshotAt ?? null,
           learnedRules: data.learnedRules ?? defaultLearnedRules(),
@@ -478,6 +648,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           accounts: defaultAccounts(),
           meisai: [],
           meisaiForecast: defaultMeisaiForecast(),
+          taxForecast: defaultTaxForecast(),
+          appliedTaxTranscription: emptyAppliedTaxTranscription(),
           budget: null,
           budgetSnapshotAt: null,
           // ロック中は実績取込の作業状態を保持
@@ -493,6 +665,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         accounts: state.accounts,
         meisai: state.meisai,
         meisaiForecast: state.meisaiForecast,
+        taxForecast: state.taxForecast,
+        appliedTaxTranscription: state.appliedTaxTranscription,
         budget: state.budget,
         budgetSnapshotAt: state.budgetSnapshotAt,
         learnedRules: state.learnedRules,
@@ -510,6 +684,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           accounts: p.accounts ?? current.accounts,
           meisai: p.meisai ?? current.meisai,
           meisaiForecast: p.meisaiForecast ?? current.meisaiForecast,
+          taxForecast: p.taxForecast ?? current.taxForecast,
+          appliedTaxTranscription:
+            p.appliedTaxTranscription ?? current.appliedTaxTranscription,
           budget: p.budget ?? current.budget,
           budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
           learnedRules: p.learnedRules ?? current.learnedRules,

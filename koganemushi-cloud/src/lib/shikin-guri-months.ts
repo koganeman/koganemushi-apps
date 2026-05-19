@@ -65,3 +65,29 @@ export function currentMonthKey(): MonthKey {
   const d = new Date();
   return monthKey(d.getFullYear(), d.getMonth() + 1);
 }
+
+/** 指定年月の末日（1-31）。Date(year, month, 0) の日。 */
+export function endOfMonthDay(year: number, month1to12: number): number {
+  return new Date(year, month1to12, 0).getDate();
+}
+
+/**
+ * Excel EOMONTH(基準, monthsOffset) 相当。基準月に monthsOffset を加えた月の
+ * 末日 {year, month, day} を返す。
+ * 月の加算は year*12+month の整数演算で行い、Date のタイムゾーンに依存しない。
+ */
+export function eomonth(
+  year: number,
+  month1to12: number,
+  monthsOffset: number
+): { year: number; month: number; day: number } {
+  const total = year * 12 + (month1to12 - 1) + monthsOffset;
+  const y = Math.floor(total / 12);
+  const m = (total % 12) + 1;
+  return { year: y, month: m, day: endOfMonthDay(y, m) };
+}
+
+/** 月末日 {year, month} を転記先 MonthKey ("YYYY-MM") に変換。 */
+export function eomonthToMonthKey(year: number, month1to12: number): MonthKey {
+  return monthKey(year, month1to12);
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useShikinGuriStore,
   PERIOD_LENGTH_MONTHS,
@@ -15,6 +15,7 @@ import { BalanceChartView } from "@/components/shikin-guri/balance-chart-view";
 import { KeijouChartView } from "@/components/shikin-guri/keijou-chart-view";
 import { BudgetActualTable } from "@/components/shikin-guri/budget-actual-table";
 import { LedgerImportPanel } from "@/components/shikin-guri/ledger-import-panel";
+import { TaxForecastPanel } from "@/components/shikin-guri/tax-forecast-panel";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
@@ -25,12 +26,14 @@ import {
   printCashflow,
 } from "@/lib/shikin-guri-print";
 
+// "accounts"(口座残高明細表) は未使用のため一時的に非表示。
+// type/コンポーネント/レンダリングは残しているので、再表示する時はこの配列に戻すだけ。
 const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
   { id: "ledger", label: "実績取込" },
   { id: "cashflow", label: "資金繰り表" },
-  { id: "accounts", label: "口座残高明細表" },
   { id: "chart", label: "残高グラフ" },
   { id: "budget", label: "予実対比表" },
+  { id: "tax", label: "納税予定" },
 ];
 
 function printAllTitle(tab: ShikinGuriTab): string {
@@ -65,6 +68,13 @@ export default function ShikinGuriPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+
+  // "accounts" タブは非表示にしたので、永続化された activeTab で取り残された場合は資金繰り表へ戻す
+  useEffect(() => {
+    if (activeTab === "accounts") {
+      setActiveTab("cashflow");
+    }
+  }, [activeTab, setActiveTab]);
 
   const runPrint = (monthsList: MonthKey[][]) => {
     const state = useShikinGuriStore.getState();
@@ -123,6 +133,9 @@ export default function ShikinGuriPage() {
       cashflow: state.cashflow,
       accounts: state.accounts,
       meisai: state.meisai,
+      meisaiForecast: state.meisaiForecast,
+      taxForecast: state.taxForecast,
+      appliedTaxTranscription: state.appliedTaxTranscription,
       budget: state.budget,
       budgetSnapshotAt: state.budgetSnapshotAt,
       learnedRules: state.learnedRules,
@@ -215,7 +228,7 @@ export default function ShikinGuriPage() {
           </button>
           <button
             onClick={handlePrintAll}
-            disabled={activeTab === "ledger"}
+            disabled={activeTab === "ledger" || activeTab === "tax"}
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={printAllTitle(activeTab)}
           >
@@ -223,7 +236,11 @@ export default function ShikinGuriPage() {
           </button>
           <button
             onClick={() => setShowMonthPicker(true)}
-            disabled={activeTab === "chart" || activeTab === "ledger"}
+            disabled={
+              activeTab === "chart" ||
+              activeTab === "ledger" ||
+              activeTab === "tax"
+            }
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={
               activeTab === "chart"
@@ -263,6 +280,7 @@ export default function ShikinGuriPage() {
           </>
         )}
         {activeTab === "budget" && <BudgetActualTable />}
+        {activeTab === "tax" && <TaxForecastPanel />}
         {activeTab === "ledger" && <LedgerImportPanel />}
       </main>
 
