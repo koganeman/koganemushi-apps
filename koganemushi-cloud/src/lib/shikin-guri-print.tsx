@@ -7,8 +7,10 @@ import { PrintAccountsSheet } from "@/components/shikin-guri/print-accounts-shee
 import { PrintBalanceChartSheet } from "@/components/shikin-guri/print-balance-chart-sheet";
 import { PrintKeijouChartSheet } from "@/components/shikin-guri/print-keijou-chart-sheet";
 import { PrintBudgetActualSheet } from "@/components/shikin-guri/print-budget-actual-sheet";
+import { PrintBankFormatSheet } from "@/components/shikin-guri/print-bank-format-sheet";
 import type {
   AccountRow,
+  BankFormatManualInput,
   CashflowMatrix,
   MonthKey,
 } from "@/types/shikin-guri";
@@ -25,7 +27,7 @@ interface RunPrintArgs {
   monthsList: MonthKey[][];
   renderPage: (months: MonthKey[], pageIndex: number) => React.ReactNode;
   /** 印刷時の document.title に使うASCII名（Chrome印刷プレビューの文字化け対策） */
-  asciiKind: "Cashflow" | "Accounts" | "BalanceChart" | "BudgetActual";
+  asciiKind: "Cashflow" | "Accounts" | "BalanceChart" | "BudgetActual" | "BankFormat";
 }
 
 async function runPrint({ monthsList, renderPage, asciiKind }: RunPrintArgs): Promise<void> {
@@ -137,6 +139,30 @@ export function printBudgetActual(opts: PrintBudgetActualOptions): Promise<void>
         budget={opts.budget}
         cashflow={opts.cashflow}
         currentMonth={opts.currentMonth}
+      />
+    ),
+  });
+}
+
+export interface PrintBankFormatOptions {
+  monthsList: MonthKey[][];
+  cashflow: CashflowMatrix;
+  currentMonth: MonthKey;
+  manualInput?: BankFormatManualInput;
+  showAccrual?: boolean;
+}
+
+export function printBankFormat(opts: PrintBankFormatOptions): Promise<void> {
+  return runPrint({
+    monthsList: opts.monthsList,
+    asciiKind: "BankFormat",
+    renderPage: (months) => (
+      <PrintBankFormatSheet
+        months={months}
+        cashflow={opts.cashflow}
+        currentMonth={opts.currentMonth}
+        manualInput={opts.manualInput}
+        showAccrual={opts.showAccrual ?? false}
       />
     ),
   });

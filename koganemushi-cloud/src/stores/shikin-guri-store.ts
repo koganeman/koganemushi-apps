@@ -4,7 +4,9 @@ import type {
   AccountRow,
   AppliedLoanTranscription,
   AppliedTaxTranscription,
+  BankFormatManualInput,
   CashflowMatrix,
+  ChartConfig,
   ConsumptionTaxInput,
   CopyColumnOptions,
   CorporateTaxInput,
@@ -51,6 +53,16 @@ import type {
 
 export const PERIOD_LENGTH_MONTHS = 36;
 
+/** 残高グラフ「危機対応可能残高」の固定費科目デフォルト（給与/社保/家賃/保険料/リース/支払利息） */
+const DEFAULT_FIXED_COST_SUBJECT_IDS = [
+  "kyuuyoShouyo",
+  "shakaiHokenGensenJuumin",
+  "chidaiYachinKounetsu",
+  "hokenryou",
+  "leaseKappu",
+  "shiharaiRisokuHoshou",
+];
+
 /**
  * 実績取込（総勘定元帳CSV）の作業状態。
  * タブ切替で消えないようストアに保持（localStorage には永続化しない＝再読込では消える）。
@@ -72,7 +84,8 @@ export type ShikinGuriTab =
   | "budget"
   | "tax"
   | "loan"
-  | "ledger";
+  | "ledger"
+  | "bank";
 
 /** CashflowMatrix を深くコピー（cells はネストするので行ごとに複製） */
 function cloneCashflow(src: CashflowMatrix): CashflowMatrix {
@@ -121,9 +134,25 @@ interface ShikinGuriState {
   ledgerLocked: boolean;
   /** 科目割当の学習ルール（localStorage永続・次回取込で自動適用） */
   learnedRules: LearnedRules;
+  /** 残高グラフのユーザー設定（固定費科目の選択） */
+  chartConfig: ChartConfig;
+  /** 金融機関用: 発生主義の売上高・仕入外注費（手入力） */
+  bankFormatManual: BankFormatManualInput;
+  /** 金融機関用: 発生主義行を UI/印刷に表示するか */
+  bankFormatShowAccrual: boolean;
 
   setPeriod: (partial: Partial<PeriodConfig>) => void;
+  /** 金融機関用: 発生主義の月次値を設定 */
+  setBankFormatManualValue: (
+    field: "uriageDaka" | "shiireGaichuu",
+    month: MonthKey,
+    value: number
+  ) => void;
+  /** 金融機関用: 発生主義行の表示トグル */
+  setBankFormatShowAccrual: (show: boolean) => void;
   setActiveTab: (tab: ShikinGuriTab) => void;
+  /** 残高グラフ: 固定費科目選択など */
+  setChartConfig: (patch: Partial<ChartConfig>) => void;
 
   /** 実績取込の作業状態を丸ごと設定（null でクリア） */
   setLedgerWork: (work: LedgerWorkState | null) => void;
@@ -196,11 +225,18 @@ interface ShikinGuriState {
     rowId: string,
     patch: Partial<Omit<LoanRow, "id" | "newBorrowing" | "repayment">>
   ) => void;
-  /** 借入金一覧: 月次の新規実行 or 返済を設定 */
+  /** 借入金一覧: 月次の新規実行 / 返済 / 利息上書き を設定 */
   setLoanMonthValue: (
     rowId: string,
-    field: "newBorrowing" | "repayment",
+    field: "newBorrowing" | "repayment" | "interestOverride",
     month: MonthKey,
+    value: number
+  ) => void;
+  /** 借入金一覧: 指定月以降の同フィールドを一括で同じ値に設定（元金均等返済の右コピー用） */
+  fillLoanMonthValueFrom: (
+    rowId: string,
+    field: "newBorrowing" | "repayment",
+    fromMonth: MonthKey,
     value: number
   ) => void;
   /** 借入金一覧: 資金繰り表へ冪等加算転記（excludeBefore より前の月は除外） */
@@ -318,9 +354,27 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       ledgerWork: null,
       ledgerLocked: false,
       learnedRules: defaultLearnedRules(),
+      chartConfig: { fixedCostSubjectIds: [...DEFAULT_FIXED_COST_SUBJECT_IDS] },
+      bankFormatManual: { uriageDaka: {}, shiireGaichuu: {} },
+      bankFormatShowAccrual: false,
 
       setPeriod: (partial) =>
         set((state) => ({ period: { ...state.period, ...partial } })),
+
+      setChartConfig: (patch) =>
+        set((state) => ({
+          chartConfig: { ...state.chartConfig, ...patch },
+        })),
+
+      setBankFormatManualValue: (field, month, value) =>
+        set((state) => ({
+          bankFormatManual: {
+            ...state.bankFormatManual,
+            [field]: { ...state.bankFormatManual[field], [month]: value },
+          },
+        })),
+
+      setBankFormatShowAccrual: (show) => set({ bankFormatShowAccrual: show }),
 
       setActiveTab: (activeTab) => set({ activeTab }),
 
@@ -562,6 +616,30 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           },
         })),
 
+      fillLoanMonthValueFrom: (rowId, field, fromMonth, value) =>
+        set((state) => {
+          const months = enumerateMonths(
+            state.period.startMonth,
+            PERIOD_LENGTH_MONTHS
+          );
+          return {
+            loanForecast: {
+              rows: state.loanForecast.rows.map((r) => {
+                if (r.id !== rowId) {
+                  return r;
+                }
+                const nextField = { ...r[field] };
+                for (const m of months) {
+                  if (m >= fromMonth) {
+                    nextField[m] = value;
+                  }
+                }
+                return { ...r, [field]: nextField };
+              }),
+            },
+          };
+        }),
+
       applyLoanTranscription: (excludeBefore = null) =>
         set((state) => {
           const months = enumerateMonths(
@@ -779,6 +857,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         budget: state.budget,
         budgetSnapshotAt: state.budgetSnapshotAt,
         learnedRules: state.learnedRules,
+        chartConfig: state.chartConfig,
+        bankFormatManual: state.bankFormatManual,
+        bankFormatShowAccrual: state.bankFormatShowAccrual,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ShikinGuriState>;
@@ -802,6 +883,10 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           budget: p.budget ?? current.budget,
           budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
           learnedRules: p.learnedRules ?? current.learnedRules,
+          chartConfig: p.chartConfig ?? current.chartConfig,
+          bankFormatManual: p.bankFormatManual ?? current.bankFormatManual,
+          bankFormatShowAccrual:
+            p.bankFormatShowAccrual ?? current.bankFormatShowAccrual,
         };
       },
     }

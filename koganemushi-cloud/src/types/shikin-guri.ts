@@ -38,6 +38,23 @@ export interface MeisaiRow {
   amounts: Record<MonthKey, number>;
 }
 
+/** 残高グラフタブのユーザー設定 */
+export interface ChartConfig {
+  /** 危機対応可能残高の計算に使う固定費科目 ID 群 */
+  fixedCostSubjectIds: string[];
+}
+
+/**
+ * 金融機関用資金繰り表の発生主義入力（売上高・仕入外注費）。
+ * アプリは cash basis のみ管理するので、提出フォームに必要な発生主義値は手入力。
+ */
+export interface BankFormatManualInput {
+  /** 月次の売上高（発生主義、円） */
+  uriageDaka: Record<MonthKey, number>;
+  /** 月次の仕入・外注費（発生主義、円） */
+  shiireGaichuu: Record<MonthKey, number>;
+}
+
 /** 資金繰り予測「各科目の試算」用に追加した摘要行 */
 export interface MeisaiForecastRow {
   /** 安定ID（追加行の識別。values のキーにも使う） */
@@ -150,6 +167,9 @@ export interface AppliedTaxTranscription {
 /** 借入種別。短期=tankiKariire 系、長期=choukiKariire 系へ転記分岐。 */
 export type LoanType = "short" | "long";
 
+/** 返済方式。equal-principal=元金均等(返済額一定)、equal-installment=元利均等(元金+利息合計一定) */
+export type LoanRepaymentMethod = "equal-principal" | "equal-installment";
+
 /**
  * 借入金一覧表 1 行分の入力。各借入の月次新規実行と返済を持つ。
  * 月末残高と支払利息は calcLoanSchedule で算出（state には保持しない）。
@@ -169,10 +189,18 @@ export interface LoanRow {
   openingBalance: number;
   /** 年利率（小数 0.017 = 1.7%） */
   annualRate: number;
+  /** 返済方式 */
+  repaymentMethod: LoanRepaymentMethod;
+  /** 元利均等時の月次返済額（元金+利息合計、円）。0 のとき amortizationTermMonths から導出 */
+  monthlyPayment: number;
+  /** 元利均等時の返済期間（月）。0 のとき monthlyPayment から導出 */
+  amortizationTermMonths: number;
   /** 月次の新規実行額（MonthKey -> 円） */
   newBorrowing: Record<MonthKey, number>;
-  /** 月次の返済額（MonthKey -> 円） */
+  /** 月次の返済額（MonthKey -> 円）。元金均等=直接入力、元利均等=0で自動算出/値>0で override */
   repayment: Record<MonthKey, number>;
+  /** 月次の利息上書き値（MonthKey -> 円）。0 のときは自動算出を使用 */
+  interestOverride: Record<MonthKey, number>;
 }
 
 /** 借入金一覧表タブの入力状態 */

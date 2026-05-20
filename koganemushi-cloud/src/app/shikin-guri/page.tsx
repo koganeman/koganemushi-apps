@@ -17,12 +17,14 @@ import { BudgetActualTable } from "@/components/shikin-guri/budget-actual-table"
 import { LedgerImportPanel } from "@/components/shikin-guri/ledger-import-panel";
 import { TaxForecastPanel } from "@/components/shikin-guri/tax-forecast-panel";
 import { LoanListPanel } from "@/components/shikin-guri/loan-list-panel";
+import { BankFormatTable } from "@/components/shikin-guri/bank-format-table";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
   chunkMonths,
   printAccounts,
   printBalanceChart,
+  printBankFormat,
   printBudgetActual,
   printCashflow,
 } from "@/lib/shikin-guri-print";
@@ -36,6 +38,7 @@ const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
   { id: "budget", label: "予実対比表" },
   { id: "tax", label: "納税予定" },
   { id: "loan", label: "借入金一覧" },
+  { id: "bank", label: "金融機関用" },
 ];
 
 function printAllTitle(tab: ShikinGuriTab): string {
@@ -44,6 +47,9 @@ function printAllTitle(tab: ShikinGuriTab): string {
   }
   if (tab === "budget") {
     return "予実対比表を全期間（36ヶ月＝6ヶ月×6ページ）で印刷／PDF出力";
+  }
+  if (tab === "bank") {
+    return "金融機関用資金繰り表を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力";
   }
   const name = tab === "cashflow" ? "資金繰り表" : "口座残高明細表";
   return `${name}を全期間（36ヶ月＝12ヶ月×3ページ）で印刷／PDF出力`;
@@ -104,6 +110,14 @@ export default function ShikinGuriPage() {
         budget: state.budget,
         cashflow: state.cashflow,
         currentMonth: state.period.currentMonth,
+      });
+    } else if (state.activeTab === "bank") {
+      void printBankFormat({
+        monthsList,
+        cashflow: state.cashflow,
+        currentMonth: state.period.currentMonth,
+        manualInput: state.bankFormatManual,
+        showAccrual: state.bankFormatShowAccrual,
       });
     }
   };
@@ -292,6 +306,7 @@ export default function ShikinGuriPage() {
         {activeTab === "tax" && <TaxForecastPanel />}
         {activeTab === "loan" && <LoanListPanel />}
         {activeTab === "ledger" && <LedgerImportPanel />}
+        {activeTab === "bank" && <BankFormatTable />}
       </main>
 
       {showMonthPicker && (
