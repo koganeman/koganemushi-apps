@@ -21,12 +21,30 @@ export const LOAN_MAX_ROWS = 20;
 export interface LoanRowMonthResult {
   /** 当月の新規実行額 */
   newBorrowing: number;
-  /** 当月の返済額 */
+  /** 当月の返済額（元金均等=ユーザー入力、元利均等=月次返済額-利息で算出） */
   repayment: number;
   /** 当月末残高（= 前月末残 + 新規 - 返済） */
   balance: number;
   /** 当月の支払利息（生 float、Excel = 月末残 × 年利率 × 日数 / 365） */
   interest: number;
+}
+
+/**
+ * 元利均等の月次返済額（元金+利息）。
+ *   M = P · r · (1+r)^n / ((1+r)^n - 1)
+ * P=元金、r=年利率/12、n=返済期間(月)。いずれか 0/負なら 0。
+ */
+export function calcEqualInstallmentMonthlyPayment(
+  principal: number,
+  annualRate: number,
+  termMonths: number
+): number {
+  if (principal <= 0 || annualRate <= 0 || termMonths <= 0) {
+    return 0;
+  }
+  const r = annualRate / 12;
+  const pow = Math.pow(1 + r, termMonths);
+  return (principal * r * pow) / (pow - 1);
 }
 
 /** 1 行分の計算結果 */
@@ -102,13 +120,46 @@ export function calcLoanSchedule(
     let totalRepayment = 0;
     let finalBalance = row.openingBalance;
 
+    const method = row.repaymentMethod ?? "equal-principal";
+    const isInstallment = method === "equal-installment";
+    let effectiveMonthlyPayment = 0;
+    if (isInstallment) {
+      if ((row.monthlyPayment ?? 0) > 0) {
+        effectiveMonthlyPayment = row.monthlyPayment;
+      } else if ((row.amortizationTermMonths ?? 0) > 0) {
+        effectiveMonthlyPayment = calcEqualInstallmentMonthlyPayment(
+          row.openingBalance,
+          row.annualRate,
+          row.amortizationTermMonths
+        );
+      }
+    }
+
     for (const m of months) {
       const nb = row.newBorrowing[m] ?? 0;
-      const rp = row.repayment[m] ?? 0;
-      const balance = prevBalance + nb - rp;
       const { year, month } = parseMonthKey(m);
       const days = endOfMonthDay(year, month);
-      const interest = balance * row.annualRate * days / 365;
+      // 返済額: 元利均等は (override優先) → (月次返済額 - 前月残ベース利息) で算出。
+      //        元金均等は常にユーザー入力をそのまま。
+      let rp: number;
+      const userRepayment = row.repayment[m] ?? 0;
+      if (isInstallment && effectiveMonthlyPayment > 0) {
+        if (userRepayment > 0) {
+          rp = userRepayment;
+        } else {
+          const interestForPrincipal =
+            prevBalance * row.annualRate * days / 365;
+          const principal = effectiveMonthlyPayment - interestForPrincipal;
+          rp = Math.max(0, Math.min(principal, prevBalance + nb));
+        }
+      } else {
+        rp = userRepayment;
+      }
+      const balance = prevBalance + nb - rp;
+      // 利息: override (> 0) があれば優先、なければ月末残ベースで自動算出
+      const calcInterest = balance * row.annualRate * days / 365;
+      const userInterest = row.interestOverride?.[m] ?? 0;
+      const interest = userInterest > 0 ? userInterest : calcInterest;
 
       perMonth[m] = { newBorrowing: nb, repayment: rp, balance, interest };
 
@@ -246,8 +297,12 @@ export function defaultLoanRow(): LoanRow {
     originalAmount: 0,
     openingBalance: 0,
     annualRate: 0,
+    repaymentMethod: "equal-principal",
+    monthlyPayment: 0,
+    amortizationTermMonths: 0,
     newBorrowing: {},
     repayment: {},
+    interestOverride: {},
   };
 }
 
