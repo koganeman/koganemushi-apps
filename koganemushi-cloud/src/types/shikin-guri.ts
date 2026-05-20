@@ -147,6 +147,51 @@ export interface AppliedTaxTranscription {
   deltas: Record<string, Record<MonthKey, number>>;
 }
 
+/** 借入種別。短期=tankiKariire 系、長期=choukiKariire 系へ転記分岐。 */
+export type LoanType = "short" | "long";
+
+/**
+ * 借入金一覧表 1 行分の入力。各借入の月次新規実行と返済を持つ。
+ * 月末残高と支払利息は calcLoanSchedule で算出（state には保持しない）。
+ */
+export interface LoanRow {
+  /** 安定 ID（行追加/削除と React key 用） */
+  id: string;
+  /** 金融機関名 */
+  lender: string;
+  /** 摘要 */
+  description: string;
+  /** 借入種別 */
+  loanType: LoanType;
+  /** 当初借入額（円） */
+  originalAmount: number;
+  /** 期首残高（= startMonth の前月末残高、円） */
+  openingBalance: number;
+  /** 年利率（小数 0.017 = 1.7%） */
+  annualRate: number;
+  /** 月次の新規実行額（MonthKey -> 円） */
+  newBorrowing: Record<MonthKey, number>;
+  /** 月次の返済額（MonthKey -> 円） */
+  repayment: Record<MonthKey, number>;
+}
+
+/** 借入金一覧表タブの入力状態 */
+export interface LoanForecastState {
+  /** 借入行（既定 20 行、空行も保持） */
+  rows: LoanRow[];
+}
+
+/**
+ * 借入金一覧表 → 資金繰り表 への冪等転記スナップショット。
+ * tax の AppliedTaxTranscription と同形式。
+ */
+export interface AppliedLoanTranscription {
+  /** 転記実行日時(ISO)。未転記は null */
+  appliedAt: string | null;
+  /** subjectId -> MonthKey -> 前回この転記が加算した金額 */
+  deltas: Record<string, Record<MonthKey, number>>;
+}
+
 export interface ShikinGuriExportData {
   version: number;
   period?: PeriodConfig;
@@ -159,6 +204,10 @@ export interface ShikinGuriExportData {
   taxForecast?: TaxForecastState;
   /** 納税予定の資金繰り表転記スナップショット */
   appliedTaxTranscription?: AppliedTaxTranscription | null;
+  /** 借入金一覧表タブの入力 */
+  loanForecast?: LoanForecastState;
+  /** 借入金一覧表の資金繰り表転記スナップショット */
+  appliedLoanTranscription?: AppliedLoanTranscription | null;
   /** 予実対比用に保持する予算（予測）スナップショット */
   budget?: CashflowMatrix | null;
   /** 予算スナップショットを取得した日時（ISO文字列） */

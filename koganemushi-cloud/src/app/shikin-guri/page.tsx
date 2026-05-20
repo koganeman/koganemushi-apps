@@ -16,6 +16,7 @@ import { KeijouChartView } from "@/components/shikin-guri/keijou-chart-view";
 import { BudgetActualTable } from "@/components/shikin-guri/budget-actual-table";
 import { LedgerImportPanel } from "@/components/shikin-guri/ledger-import-panel";
 import { TaxForecastPanel } from "@/components/shikin-guri/tax-forecast-panel";
+import { LoanListPanel } from "@/components/shikin-guri/loan-list-panel";
 import { PrintMonthPickerDialog } from "@/components/shikin-guri/print-month-picker-dialog";
 import { enumerateMonths } from "@/lib/shikin-guri-months";
 import {
@@ -34,6 +35,7 @@ const TAB_LABELS: { id: ShikinGuriTab; label: string }[] = [
   { id: "chart", label: "残高グラフ" },
   { id: "budget", label: "予実対比表" },
   { id: "tax", label: "納税予定" },
+  { id: "loan", label: "借入金一覧" },
 ];
 
 function printAllTitle(tab: ShikinGuriTab): string {
@@ -136,6 +138,8 @@ export default function ShikinGuriPage() {
       meisaiForecast: state.meisaiForecast,
       taxForecast: state.taxForecast,
       appliedTaxTranscription: state.appliedTaxTranscription,
+      loanForecast: state.loanForecast,
+      appliedLoanTranscription: state.appliedLoanTranscription,
       budget: state.budget,
       budgetSnapshotAt: state.budgetSnapshotAt,
       learnedRules: state.learnedRules,
@@ -228,7 +232,11 @@ export default function ShikinGuriPage() {
           </button>
           <button
             onClick={handlePrintAll}
-            disabled={activeTab === "ledger" || activeTab === "tax"}
+            disabled={
+              activeTab === "ledger" ||
+              activeTab === "tax" ||
+              activeTab === "loan"
+            }
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={printAllTitle(activeTab)}
           >
@@ -239,7 +247,8 @@ export default function ShikinGuriPage() {
             disabled={
               activeTab === "chart" ||
               activeTab === "ledger" ||
-              activeTab === "tax"
+              activeTab === "tax" ||
+              activeTab === "loan"
             }
             className="text-xs border border-indigo-500 text-indigo-700 rounded px-3 py-1 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={
@@ -281,6 +290,7 @@ export default function ShikinGuriPage() {
         )}
         {activeTab === "budget" && <BudgetActualTable />}
         {activeTab === "tax" && <TaxForecastPanel />}
+        {activeTab === "loan" && <LoanListPanel />}
         {activeTab === "ledger" && <LedgerImportPanel />}
       </main>
 

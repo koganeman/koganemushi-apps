@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   AccountRow,
+  AppliedLoanTranscription,
   AppliedTaxTranscription,
   CashflowMatrix,
   ConsumptionTaxInput,
@@ -9,6 +10,8 @@ import type {
   CorporateTaxInput,
   DefenseTaxMode,
   FiscalPeriodConfig,
+  LoanForecastState,
+  LoanRow,
   MeisaiForecastRow,
   MeisaiForecastState,
   MeisaiRow,
@@ -17,13 +20,21 @@ import type {
   ShikinGuriExportData,
   TaxForecastState,
 } from "@/types/shikin-guri";
-import { currentMonthKey, addMonths } from "@/lib/shikin-guri-months";
+import { currentMonthKey, addMonths, enumerateMonths } from "@/lib/shikin-guri-months";
 import {
   calcTaxForecast,
   computeTranscriptionCells,
   emptyAppliedTaxTranscription,
   revertTranscriptionCells,
 } from "@/lib/tax-forecast-calc";
+import {
+  applyLoanTranscriptionCells,
+  calcLoanSchedule,
+  computeLoanTranscriptionDeltas,
+  defaultLoanForecast,
+  emptyAppliedLoanTranscription,
+  revertLoanTranscriptionCells,
+} from "@/lib/loan-forecast-calc";
 import type {
   CashflowCsvImportResult,
   AccountCsvImportResult,
@@ -60,6 +71,7 @@ export type ShikinGuriTab =
   | "chart"
   | "budget"
   | "tax"
+  | "loan"
   | "ledger";
 
 /** CashflowMatrix を深くコピー（cells はネストするので行ごとに複製） */
@@ -94,6 +106,10 @@ interface ShikinGuriState {
   taxForecast: TaxForecastState;
   /** 納税予定の資金繰り表転記スナップショット（冪等転記用） */
   appliedTaxTranscription: AppliedTaxTranscription;
+  /** 借入金一覧表タブの入力（20行固定） */
+  loanForecast: LoanForecastState;
+  /** 借入金一覧表の資金繰り表転記スナップショット（冪等転記用） */
+  appliedLoanTranscription: AppliedLoanTranscription;
   /** 予実対比用の予算（予測）スナップショット。未取得は null */
   budget: CashflowMatrix | null;
   /** 予算スナップショット取得日時（ISO文字列）。未取得は null */
@@ -174,6 +190,23 @@ interface ShikinGuriState {
   applyTaxTranscription: (excludeBefore?: MonthKey | null) => void;
   /** 納税予定: 転記を取消（前回適用分を引き戻す） */
   clearTaxTranscription: () => void;
+
+  /** 借入金一覧: 1行のメタ情報を更新（id 変更不可、月次値は別アクション） */
+  updateLoanRow: (
+    rowId: string,
+    patch: Partial<Omit<LoanRow, "id" | "newBorrowing" | "repayment">>
+  ) => void;
+  /** 借入金一覧: 月次の新規実行 or 返済を設定 */
+  setLoanMonthValue: (
+    rowId: string,
+    field: "newBorrowing" | "repayment",
+    month: MonthKey,
+    value: number
+  ) => void;
+  /** 借入金一覧: 資金繰り表へ冪等加算転記（excludeBefore より前の月は除外） */
+  applyLoanTranscription: (excludeBefore?: MonthKey | null) => void;
+  /** 借入金一覧: 転記を取消（前回適用分を引き戻す） */
+  clearLoanTranscription: () => void;
 
   addAccount: (name?: string) => void;
   removeAccount: (id: string) => void;
@@ -278,6 +311,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
       meisaiForecast: defaultMeisaiForecast(),
       taxForecast: defaultTaxForecast(),
       appliedTaxTranscription: emptyAppliedTaxTranscription(),
+      loanForecast: defaultLoanForecast(),
+      appliedLoanTranscription: emptyAppliedLoanTranscription(),
       budget: null,
       budgetSnapshotAt: null,
       ledgerWork: null,
@@ -505,6 +540,73 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           };
         }),
 
+      updateLoanRow: (rowId, patch) =>
+        set((state) => ({
+          loanForecast: {
+            rows: state.loanForecast.rows.map((r) =>
+              r.id === rowId ? { ...r, ...patch } : r
+            ),
+          },
+        })),
+
+      setLoanMonthValue: (rowId, field, month, value) =>
+        set((state) => ({
+          loanForecast: {
+            rows: state.loanForecast.rows.map((r) => {
+              if (r.id !== rowId) {
+                return r;
+              }
+              const nextField = { ...r[field], [month]: value };
+              return { ...r, [field]: nextField };
+            }),
+          },
+        })),
+
+      applyLoanTranscription: (excludeBefore = null) =>
+        set((state) => {
+          const months = enumerateMonths(
+            state.period.startMonth,
+            PERIOD_LENGTH_MONTHS
+          );
+          const result = calcLoanSchedule(state.loanForecast, months);
+          const allDeltas = computeLoanTranscriptionDeltas(result);
+          // excludeBefore 以前の月を deltas から除外（実績月は手動入力を優先）
+          const nextDeltas: Record<string, Record<MonthKey, number>> = {};
+          for (const [sid, row] of Object.entries(allDeltas)) {
+            for (const [m, v] of Object.entries(row)) {
+              if (excludeBefore && m <= excludeBefore) {
+                continue;
+              }
+              (nextDeltas[sid] ??= {});
+              nextDeltas[sid][m] = v;
+            }
+          }
+          const cells = applyLoanTranscriptionCells(
+            state.cashflow.cells,
+            state.appliedLoanTranscription.deltas,
+            nextDeltas
+          );
+          return {
+            cashflow: { ...state.cashflow, cells },
+            appliedLoanTranscription: {
+              appliedAt: new Date().toISOString(),
+              deltas: nextDeltas,
+            },
+          };
+        }),
+
+      clearLoanTranscription: () =>
+        set((state) => {
+          const cells = revertLoanTranscriptionCells(
+            state.cashflow.cells,
+            state.appliedLoanTranscription.deltas
+          );
+          return {
+            cashflow: { ...state.cashflow, cells },
+            appliedLoanTranscription: emptyAppliedLoanTranscription(),
+          };
+        }),
+
       addAccount: (name = "") =>
         set((state) => ({
           accounts: [...state.accounts, { id: makeId(), name, balances: {} }],
@@ -635,6 +737,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           taxForecast: data.taxForecast ?? defaultTaxForecast(),
           appliedTaxTranscription:
             data.appliedTaxTranscription ?? emptyAppliedTaxTranscription(),
+          loanForecast: data.loanForecast ?? defaultLoanForecast(),
+          appliedLoanTranscription:
+            data.appliedLoanTranscription ?? emptyAppliedLoanTranscription(),
           budget: data.budget ?? null,
           budgetSnapshotAt: data.budgetSnapshotAt ?? null,
           learnedRules: data.learnedRules ?? defaultLearnedRules(),
@@ -650,6 +755,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           meisaiForecast: defaultMeisaiForecast(),
           taxForecast: defaultTaxForecast(),
           appliedTaxTranscription: emptyAppliedTaxTranscription(),
+          loanForecast: defaultLoanForecast(),
+          appliedLoanTranscription: emptyAppliedLoanTranscription(),
           budget: null,
           budgetSnapshotAt: null,
           // ロック中は実績取込の作業状態を保持
@@ -667,6 +774,8 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
         meisaiForecast: state.meisaiForecast,
         taxForecast: state.taxForecast,
         appliedTaxTranscription: state.appliedTaxTranscription,
+        loanForecast: state.loanForecast,
+        appliedLoanTranscription: state.appliedLoanTranscription,
         budget: state.budget,
         budgetSnapshotAt: state.budgetSnapshotAt,
         learnedRules: state.learnedRules,
@@ -687,6 +796,9 @@ export const useShikinGuriStore = create<ShikinGuriState>()(
           taxForecast: p.taxForecast ?? current.taxForecast,
           appliedTaxTranscription:
             p.appliedTaxTranscription ?? current.appliedTaxTranscription,
+          loanForecast: p.loanForecast ?? current.loanForecast,
+          appliedLoanTranscription:
+            p.appliedLoanTranscription ?? current.appliedLoanTranscription,
           budget: p.budget ?? current.budget,
           budgetSnapshotAt: p.budgetSnapshotAt ?? current.budgetSnapshotAt,
           learnedRules: p.learnedRules ?? current.learnedRules,
