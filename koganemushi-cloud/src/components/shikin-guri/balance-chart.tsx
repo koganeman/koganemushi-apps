@@ -36,6 +36,10 @@ interface Props {
   responsive?: boolean;
   width?: number;
   height?: number;
+  /** 資金余裕残高（緑の水平点線）。0/未指定なら描画しない */
+  adequateCash?: number;
+  /** 危機対応可能残高（アンバーの水平点線）。0/未指定なら描画しない */
+  crisisResilientCash?: number;
 }
 
 export function BalanceChart({
@@ -46,6 +50,8 @@ export function BalanceChart({
   responsive = true,
   width = 1080,
   height = 600,
+  adequateCash,
+  crisisResilientCash,
 }: Props) {
   const data = useMemo<ChartPoint[]>(() => {
     const months = enumerateMonths(startMonth, monthCount);
@@ -67,6 +73,27 @@ export function BalanceChart({
     });
   }, [startMonth, monthCount, currentMonth, cashflow]);
 
+  // Y軸上限: 残高データ・基準線2本のうち最大値に 10% パディング。
+  // これがないと 基準線(緑/オレンジ)が auto domain の外に出て見えなくなる。
+  const yDomainMax = useMemo(() => {
+    let maxVal = 0;
+    for (const d of data) {
+      if (d.closingActual !== null && d.closingActual > maxVal) {
+        maxVal = d.closingActual;
+      }
+      if (d.closingForecast !== null && d.closingForecast > maxVal) {
+        maxVal = d.closingForecast;
+      }
+    }
+    if (adequateCash != null && adequateCash > maxVal) {
+      maxVal = adequateCash;
+    }
+    if (crisisResilientCash != null && crisisResilientCash > maxVal) {
+      maxVal = crisisResilientCash;
+    }
+    return Math.ceil(Math.max(maxVal * 1.1, 1_000_000));
+  }, [data, adequateCash, crisisResilientCash]);
+
   const chart = (
     <LineChart data={data} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
       <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
@@ -79,6 +106,10 @@ export function BalanceChart({
         tickFormatter={formatYenAxis}
         tick={{ fontSize: 11 }}
         width={70}
+        domain={[
+          (dataMin: number) => (dataMin < 0 ? Math.floor(dataMin * 1.05) : 0),
+          yDomainMax,
+        ]}
       />
       <Tooltip
         formatter={(value, name) => {
@@ -94,6 +125,34 @@ export function BalanceChart({
       />
       <Legend wrapperStyle={{ fontSize: 12 }} />
       <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1} />
+      {crisisResilientCash != null && crisisResilientCash > 0 && (
+        <ReferenceLine
+          y={crisisResilientCash}
+          stroke="#f59e0b"
+          strokeDasharray="4 4"
+          strokeWidth={1.5}
+          label={{
+            value: `危機対応 ¥${formatYen(Math.round(crisisResilientCash))}`,
+            position: "insideTopRight",
+            fontSize: 11,
+            fill: "#b45309",
+          }}
+        />
+      )}
+      {adequateCash != null && adequateCash > 0 && (
+        <ReferenceLine
+          y={adequateCash}
+          stroke="#16a34a"
+          strokeDasharray="4 4"
+          strokeWidth={1.5}
+          label={{
+            value: `余裕 ¥${formatYen(Math.round(adequateCash))}`,
+            position: "insideTopRight",
+            fontSize: 11,
+            fill: "#15803d",
+          }}
+        />
+      )}
       <Line
         type="monotone"
         dataKey="closingActual"
@@ -129,9 +188,45 @@ export function BalanceChart({
     <LineChart data={data} width={width} height={height} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
       <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
       <XAxis dataKey="monthLabel" tick={{ fontSize: 10 }} interval={1} />
-      <YAxis tickFormatter={formatYenAxis} tick={{ fontSize: 10 }} width={70} />
+      <YAxis
+        tickFormatter={formatYenAxis}
+        tick={{ fontSize: 10 }}
+        width={70}
+        domain={[
+          (dataMin: number) => (dataMin < 0 ? Math.floor(dataMin * 1.05) : 0),
+          yDomainMax,
+        ]}
+      />
       <Legend wrapperStyle={{ fontSize: 11 }} />
       <ReferenceLine y={0} stroke="#dc2626" strokeWidth={1} />
+      {crisisResilientCash != null && crisisResilientCash > 0 && (
+        <ReferenceLine
+          y={crisisResilientCash}
+          stroke="#f59e0b"
+          strokeDasharray="4 4"
+          strokeWidth={1.5}
+          label={{
+            value: `危機対応 ¥${formatYen(Math.round(crisisResilientCash))}`,
+            position: "insideTopRight",
+            fontSize: 10,
+            fill: "#b45309",
+          }}
+        />
+      )}
+      {adequateCash != null && adequateCash > 0 && (
+        <ReferenceLine
+          y={adequateCash}
+          stroke="#16a34a"
+          strokeDasharray="4 4"
+          strokeWidth={1.5}
+          label={{
+            value: `余裕 ¥${formatYen(Math.round(adequateCash))}`,
+            position: "insideTopRight",
+            fontSize: 10,
+            fill: "#15803d",
+          }}
+        />
+      )}
       <Line
         type="monotone"
         dataKey="closingActual"
